@@ -12,32 +12,36 @@ import diffson.diff
 import io.circe._
 import io.circe.parser._
 import cats.implicits._
+import scala.util.Try
+import diffson.circe.given
+import io.circe.syntax._
+import cats.implicits._
 
 @main def run() = {
+
   given lcs: Lcs[Json] = new Patience[Json]
+
   val json1 = parse("""{
-                    |  "title" : "Star Wars - A New Hope",
-                    |  "running time" : 125,
-                    |  "cast" : {
-                        | "Han" : "Ford",
-                        | "Leia" : "Fisher"
-                    |}
-                    |}""".stripMargin)
+    "title": "Star Wars - A New Hope",
+    "running time": 125,
+    "cast": {
+      "Han": "Ford",
+      "Leia": "Fisher"
+    }
+  }""").toOption.get
 
-val json2 = parse("""{
-                    |  "cast" : [
-                        | "Ford",
-                        | "Fisher"
-                      |],
-                    |  "running time" : 125,
-                    |  "name" : "Star Wars -A New Hope"
-                    |}""".stripMargin)
+  val json2 = parse("""{
+    "cast": [
+      "Ford",
+      "Fisher"
+    ],
+    "running time": 125,
+    "name": "Star Wars -A New Hope"
+  }""").toOption.get
 
-val patch =
-  for {
-    json1 <- json1
-    json2 <- json2
-  } yield diff(json1, json2)
+  val patch = diff(json1, json2)
 
-  println(patch)
+  val json2R = patch[Try](json1)
+
+  println(patch.asJson.spaces2)
 }
