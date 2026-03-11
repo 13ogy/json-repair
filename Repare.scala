@@ -7,6 +7,7 @@
 import diffson.circe._
 import diffson.jsonpatch._
 import diffson.jsonpatch.lcsdiff._
+import diffson.jsonpatch.simplediff.JsonDiffDiff
 import diffson.lcs._ 
 import diffson.diff 
 import io.circe._
@@ -16,30 +17,10 @@ import scala.util.Try
 import diffson.circe.given
 import io.circe.syntax._
 import cats.implicits._
+import scala.io.Source
 
-@main def run() = {
 
-  given lcs: Lcs[Json] = new Patience[Json]
+def repair(data: Json, schema: Json): Json =
+  // definir Repair(J, S) by structral inductions. Start with string, number, object, arrays assertions. Assumption for objects: not editing the labels.
+  
 
-  val json1 = parse("""{
-    "title": "Star Wars - A New Hope",
-    "running time": 125,
-    "cast": {
-      "Han": "Ford",
-      "Leia": "Fisher"
-    }
-  }""").toOption.get
-
-  val json2 = parse("""{
-    "cast": [
-      "Ford",
-      "Fisher"
-    ],
-    "running time": 125,
-    "name": "Star Wars -A New Hope"
-  }""").toOption.get
-
-  val patch = diff(json1, json2)
-
-  println(patch.asJson.spaces2)
-}
