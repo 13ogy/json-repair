@@ -54,6 +54,25 @@ def repairType(data: Json, schema: Json, error: ValidationError): Json =
   val jsonType = schema.hcursor.downField("properties").downField(path.head).downField("type").as[String].getOrElse("")
   val defaultVal = defaultValue(jsonType)
 
-  // Repair the data by replacing the invalid value with the default value based on the schema
-  data.hcursor.downField(path.head).withFocus(_ => defaultVal).top.get
+  if (keyword == "type") {
+    // erreur de type, on remplace la valeur par la valeur par défaut basée sur le schéma
+    data.hcursor.downField(path.head).withFocus(_ => defaultVal).top.get
+  }
+  if(keyword == "required" ) {
+    // il manque une propriété requise, on l'ajoute avec la valeur par défaut basée sur le schéma}
+    val missingProperty = error.error.split("'")(1) // extraire le nom de la propriété manquante
+    val missingPropertyType = schema.hcursor.downField("properties").downField(missingProperty).downField("type").as[String].getOrElse("")
+    val missingPropertyDefaultVal = defaultValue(missingPropertyType)
+    data.hcursor.downField(path.head).withFocus(_.mapObject(_.add(missingProperty, missingPropertyDefaultVal))).top.get
+  }
+  if(keyword == "minimum"){
+    // la valeur est inférieure au minimum, on la remplace par le minimum
+    val minimum = schema.hcursor.downField("properties").downField(path.head).downField("minimum").as[Double].getOrElse(0.0).asJson
+    data.hcursor.downField(path.head).withFocus(_ => minimum).top.get
+  }
+  if(keyword == "maximum"){
+    // la valeur est supérieure au maximum, on la remplace par le maximum
+    val maximum = schema.hcursor.downField("properties").downField(path.head).downField("maximum").as[Double].getOrElse(0.0).asJson
+    data.hcursor.downField(path.head).withFocus(_ => maximum).top.get
+  }
 

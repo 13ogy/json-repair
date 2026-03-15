@@ -1,3 +1,5 @@
+from pprint import pprint
+
 from jschon import create_catalog, JSON, JSONSchema
 
 create_catalog('2020-12')
@@ -29,12 +31,11 @@ demo_schema = JSONSchema({
 
 result = demo_schema.evaluate(
     JSON({
-        "firstName": "1",
-        "lastName": "True",
-        "age": 21
+        "lastName": True,
+        "age": -1
         }
 
     )
 )
 
-print(result.output('basic'))
+pprint(result.output('basic'))

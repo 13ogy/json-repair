@@ -21,7 +21,7 @@ import scala.io.Source
 
 @main def run() = {
 
-	val jsonString = Source.fromFile("test_suite/minimum.json").mkString
+	val jsonString = Source.fromFile("../test_suite/minimum.json").mkString
 	val json = parse(jsonString).toOption.get
 
 	val groups = json.asArray.get
