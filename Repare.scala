@@ -141,7 +141,7 @@ def repairOne(data: Json, schema: Json, error: ValidationError): Json =
       navigateData(data.hcursor, path).withFocus(_ => max.asJson).top.getOrElse(data)
 
     case "required" =>
-      val missingField = error.error.stripPrefix("The object is missing required properties [\"").takeWhile(_ != '"')
+      val missingField = error.error.stripPrefix("The object is missing required properties [\'").takeWhile(_ != '\'')
       val t = errorNode.downField("properties").downField(missingField).downField("type").as[String].getOrElse("")
       navigateData(data.hcursor, path).withFocus(_.mapObject(_.add(missingField, defaultValue(t)))).top.getOrElse(data)
 
@@ -155,11 +155,12 @@ def repair(data: Json, schema: Json, result: ValidationResult): Json =
   // le schema
   val schemaStr = """
   {
+    "required": ["active"],
     "properties": {
       "user": {
         "properties": {
           "id":     { "type": "integer", "minimum": 1 },
-          "emails": { "type": "array" ,"items": { "type": "string", "format": "email" }, "minItems": 1}
+          "emails": { "type": "array" ,"items": { "type": "string", "format": "email" }}
         }
       },
       "active": { "type": "boolean" }
@@ -173,8 +174,7 @@ def repair(data: Json, schema: Json, result: ValidationResult): Json =
     "user": {
       "id": 0,
       "emails": "alice@example.com"
-    },
-    "active": "yes"
+    }
   }
   """
 
@@ -184,6 +184,7 @@ def repair(data: Json, schema: Json, result: ValidationResult): Json =
   val result   = validate(data, schema)   // calls Python
   val repaired = repair(data, schema, result)
  
+  println(result)
 
   println("avant réparation:")
   println(data.spaces2)
