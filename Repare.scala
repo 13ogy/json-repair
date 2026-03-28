@@ -72,18 +72,22 @@ def defaultValue(jsonType: String): Json = jsonType match {
 def stringToBool(v: String): Json = v.toLowerCase() match {
   case "ok"|"yes"|"oui"|"true"|"vrai" => true.asJson
   case "no"|"non"|"false"|"faux" => false.asJson
-  case _ => Json.Null
+  case _ => defaultValue("boolean")
 }
 
-def stringToInt(v: String): Json =
+def stringToInt(v: String, errorNode: ACursor): Json =
+  val min = errorNode.downField("minimum").as[Int].getOrElse(Int.MinValue)
+  val max = errorNode.downField("maximum").as[Int].getOrElse(Int.MaxValue)
   Try(v.toInt).orElse(Try(v.toDouble.toInt)).toOption match
-    case Some(i) => i.asJson
-    case None    => Json.Null
+    case Some(i) => i.max(min).min(max).asJson
+    case None    => defaultValue("integer")
 
-def stringToDouble(v: String): Json = 
+def stringToDouble(v: String, errorNode: ACursor): Json = 
+  val min = errorNode.downField("minimum").as[Double].getOrElse(Double.MinValue)
+  val max = errorNode.downField("maximum").as[Double].getOrElse(Double.MaxValue)
   Try(v.toDouble).toOption match
-    case Some(d) => d.asJson
-    case None    => Json.Null
+    case Some(d) => d.max(min).min(max).asJson
+    case None    => defaultValue("number")
 
 
 def stringToArray(v: String, errorNode: ACursor): Json =
@@ -122,8 +126,8 @@ def repairOne(data: Json, schema: Json, error: ValidationError): Json =
       val currentValue = navigateData(data.hcursor, path).focus
       val repairedValue = (t, currentValue.flatMap(_.asString)) match
         case ("boolean", Some(s)) => stringToBool(s)
-        case ("integer", Some(s)) => stringToInt(s)
-        case ("number",  Some(s)) => stringToDouble(s)
+        case ("integer", Some(s)) => stringToInt(s, errorNode)
+        case ("number",  Some(s)) => stringToDouble(s, errorNode)
         case ("array", Some(s)) => stringToArray(s, errorNode)
         case _  => defaultValue(t)
       navigateData(data.hcursor, path).withFocus(_ => repairedValue).top.getOrElse(data)
@@ -172,7 +176,7 @@ def repair(data: Json, schema: Json, result: ValidationResult): Json =
   val dataStr = """
   {
     "user": {
-      "id": 0,
+      "id": "0",
       "emails": "alice@example.com"
     }
   }
