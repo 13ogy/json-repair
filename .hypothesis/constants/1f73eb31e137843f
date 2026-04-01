@@ -1,0 +1,4 @@
+# file: C:\Users\melse\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\hypothesis_jsonschema\_canonicalise.py
+# hypothesis_version: 6.151.10
+
+[100, 128, 'CacheableSchema', 'additionalItems', 'additionalProperties', 'allOf', 'anyOf', 'array', 'boolean', 'const', 'contains', 'dependencies', 'else', 'encoded', 'enum', 'exclusiveMaximum', 'exclusiveMinimum', 'if', 'inf', 'integer', 'items', 'maxItems', 'maxLength', 'maxProperties', 'maximum', 'minItems', 'minLength', 'minProperties', 'minimum', 'multipleOf', 'not', 'null', 'number', 'object', 'oneOf', 'patternProperties', 'properties', 'propertyNames', 'required', 'schema', 'string', 'then', 'type', 'uniqueItems']
