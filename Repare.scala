@@ -68,6 +68,15 @@ def defaultValue(jsonType: String): Json = jsonType match {
     case _         => Json.Null
   }
 
+def partialPriority(jsonType: String): Int = jsonType match {
+  case "boolean" => 0
+  case "integer" => 0
+  case "number"  => 0
+  case "string"  => 0
+  case "array"   => 1
+  case "object"  => 2
+  case _         => Int.MaxValue
+}
 
 def stringToBool(v: String): Json = v.toLowerCase() match {
   case "ok"|"yes"|"oui"|"true"|"vrai" => true.asJson
@@ -99,7 +108,7 @@ def stringToArray(v: String, errorNode: ACursor): Json =
 
 //verifier que l'erreur n'est pas un noeud interne de l'arbre
 def isLeafError(error: ValidationError): Boolean =
-  error.keywordLocation.split("/").last != "properties"
+  error.keywordLocation.split("/").last != "properties" 
 
 // navigue le schema pour qu'on pointe sur le bon champs
 def navigateSchema(schema: Json, path: List[String]): ACursor =
@@ -144,6 +153,47 @@ def repairOne(data: Json, schema: Json, error: ValidationError): Json =
         case Left(_)  => errorNode.downField("maximum").as[Double].getOrElse(0.0).asJson
       navigateData(data.hcursor, path).withFocus(_ => max.asJson).top.getOrElse(data)
 
+    // multiple of 
+    case "multipleOf" =>
+      val multipleOf = errorNode.downField("multipleOf").as[Int] match
+        case Right(i) => i.toDouble
+        case Left(_)  => errorNode.downField("multipleOf").as[Double].getOrElse(1.0)
+      
+      val min     = errorNode.downField("minimum").as[Double].getOrElse(Double.MinValue)
+      val max     = errorNode.downField("maximum").as[Double].getOrElse(Double.MaxValue)
+      val current = navigateData(data.hcursor, path).focus
+        .flatMap(_.as[Double].toOption).getOrElse(min)
+
+      val below      = math.floor(current / multipleOf) * multipleOf
+      val above      = below + multipleOf
+      val candidates = List(below, above).filter(v => v >= min && v <= max)
+
+      // si il y a des candidats valides, alors on ne peut pas réparer
+      val repairedJson = candidates
+        .minByOption(v => math.abs(v - current))
+        .map(repaired =>
+          if repaired == repaired.toLong then repaired.toLong.asJson
+          else repaired.asJson
+        )
+        .getOrElse(Json.Null)  // impossible to repair
+
+      navigateData(data.hcursor, path).withFocus(_ => repairedJson).top.getOrElse(data)
+
+    case "minLength" =>
+      val minLength = errorNode.downField("minLength").as[Int].getOrElse(0)
+      val current   = navigateData(data.hcursor, path).focus
+        .flatMap(_.asString).getOrElse("")
+      val padded    = current.padTo(minLength, 'x')  // pad with 'x' to meet minLength
+      navigateData(data.hcursor, path).withFocus(_ => padded.asJson).top.getOrElse(data)
+
+    case "maxLength" =>
+      val maxLength = errorNode.downField("maxLength").as[Int].getOrElse(0)
+      val current   = navigateData(data.hcursor, path).focus
+        .flatMap(_.asString).getOrElse("")
+      navigateData(data.hcursor, path)
+        .withFocus(_ => current.take(maxLength).asJson).top.getOrElse(data)
+
+    //besoin de generateur aléatoire
     case "required" =>
       val missingField = error.error.stripPrefix("The object is missing required properties [\'").takeWhile(_ != '\'')
       val t = errorNode.downField("properties").downField(missingField).downField("type").as[String].getOrElse("")
@@ -154,6 +204,36 @@ def repairOne(data: Json, schema: Json, error: ValidationError): Json =
 def repair(data: Json, schema: Json, result: ValidationResult): Json =
   result.errors.filter(isLeafError).foldLeft(data) { (current, error) => repairOne(current, schema, error)}
 
+
+def repairAll(data: Json, schema: Json, result: ValidationResult, maxIterations: Int = 10): Either[String, Json] =
+  var instance = data
+  var errors = result.errors.filter(isLeafError)
+  var iterations = 0
+
+  while (errors.nonEmpty && iterations < maxIterations) {
+    // on prend la premiere erreur
+    val error = errors.head 
+    val repaired = repairOne(instance, schema, error)
+
+    // si la réparation a changé l'instance, on revalide pour voir les nouvelles erreurs
+    if repaired != instance then
+      instance = repaired
+      val newResult = validate(instance, schema)
+      errors = newResult.errors.filter(isLeafError)
+    else
+      // si rien n'a changé, elle n'est pas réparable, on passe à l'erreur suivante
+      errors = errors.tail
+    iterations += 1
+  }
+
+  if (errors.isEmpty) {
+    println(s"Successfully repaired the JSON in $iterations iterations.")
+    Right(instance)
+  } else {
+    Left("Could not fully repair the JSON, remaining errors: " + errors.map(_.error).mkString(", "))
+  }
+
+
 @main def test(): Unit =
 
   // le schema
@@ -163,11 +243,11 @@ def repair(data: Json, schema: Json, result: ValidationResult): Json =
     "properties": {
       "user": {
         "properties": {
-          "id":     { "type": "integer", "minimum": 1 },
+          "id":     { "type": "integer", "minimum": 7, "multipleOf": 3 },
           "emails": { "type": "array" ,"items": { "type": "string", "format": "email" }}
         }
       },
-      "active": { "type": "boolean" }
+      "active": { "type": "boolean" }  
     }
   }
   """
@@ -176,22 +256,29 @@ def repair(data: Json, schema: Json, result: ValidationResult): Json =
   val dataStr = """
   {
     "user": {
-      "id": "0",
+      "id": 1,
       "emails": "alice@example.com"
-    }
+    },
+    "active": "yes"  
   }
   """
 
   val schema = parse(schemaStr).getOrElse(Json.Null)
   val data   = parse(dataStr).getOrElse(Json.Null)
 
-  val result   = validate(data, schema)   // calls Python
-  val repaired = repair(data, schema, result)
- 
-  println(result)
 
   println("avant réparation:")
   println(data.spaces2)
 
-  println("\naprès réparation:")
-  println(repaired.spaces2)
+  val result   = validate(data, schema)   // calls Python
+  //val repaired = repair(data, schema, result)
+  val repaired = repairAll(data, schema, result) match
+    case Right(repaired) => 
+      println("\naprès réparation:")
+      println(repaired.spaces2)
+    case Left(err)   => println(s"\nréparation échouée: $err")
+
+
+  
+
+  
