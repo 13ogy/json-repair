@@ -21,6 +21,7 @@ import cats.implicits._
 import scala.io.Source
 import scala.sys.process._
 import io.circe.generic.auto._  
+import io.circe.Encoder.encodeInt
 
 def validate(data: Json, schema: Json): ValidationResult =
   // strip $schema key from schema before passing to Python
@@ -68,15 +69,27 @@ def defaultValue(jsonType: String): Json = jsonType match {
     case _         => Json.Null
   }
 
-def partialPriority(jsonType: String): Int = jsonType match {
-  case "boolean" => 0
-  case "integer" => 0
-  case "number"  => 0
-  case "string"  => 0
-  case "array"   => 1
-  case "object"  => 2
-  case _         => Int.MaxValue
-}
+def partialPriority(branchSchema: Json): Int =
+  
+  val cursor = branchSchema.hcursor
+  
+  cursor.downField("type").as[String].toOption match 
+    // on verifie par le type
+    case Some("boolean") => 0
+    case Some("integer") => 0
+    case Some("number")  => 0
+    case Some("string")  => 0
+    case Some("array")   => 1
+    case Some("object")  => 2
+
+    //mais si le type n'est pas spécifié, c'est parfois plus facile à réparer, alors on priorise les branches sans type
+    case _ => 
+      if cursor.downField("Required").succeeded then 2
+      else if cursor.downField("properties").succeeded then 2
+      else if cursor.downField("items").succeeded then 1
+      else if cursor.downField("minItems").succeeded then 1
+      else 0 //cas minimum/ maximum/ minLength/ maxLength/ multipleOf, qui sont souvent faciles à réparer même sans type
+
 
 def stringToBool(v: String): Json = v.toLowerCase() match {
   case "ok"|"yes"|"oui"|"true"|"vrai" => true.asJson
@@ -108,7 +121,9 @@ def stringToArray(v: String, errorNode: ACursor): Json =
 
 //verifier que l'erreur n'est pas un noeud interne de l'arbre
 def isLeafError(error: ValidationError): Boolean =
-  error.keywordLocation.split("/").last != "properties" 
+  val last = error.keywordLocation.split("/").last
+  val anyOfRelated = error.keywordLocation.contains("/anyOf/") || error.keywordLocation.contains("/oneOf/")
+  last != "properties" && !anyOfRelated
 
 // navigue le schema pour qu'on pointe sur le bon champs
 def navigateSchema(schema: Json, path: List[String]): ACursor =
@@ -119,6 +134,60 @@ def navigateSchema(schema: Json, path: List[String]): ACursor =
 // navigue le json pour pointer sur le champs où se trouve l'erreur
 def navigateData(cur: ACursor, path: List[String]): ACursor =
   path.foldLeft(cur) { (c, key) => c.downField(key) }
+
+//generateur type
+def generateType(errorNode: ACursor): Json =
+  val fieldSchema = errorNode.as[Json].getOrElse(Json.obj())
+  val t = errorNode.downField("type").as[String].getOrElse("")
+  
+  generateFromSchema(fieldSchema) match
+    case Some(v) => v
+    case None    => defaultValue(t)
+
+def generateFromSchema(schema: Json): Option[Json] =
+  val input = schema.noSpaces
+  Try {
+    Seq("python3", "generate.py", input).!!.trim
+  }.toOption.flatMap { output =>
+    parse(output).toOption
+  }
+
+def countPriority(subInstance: Json, branches: List[(Json, Int)]): List[(Int, Json, Int, List[ValidationError])] =
+  branches.map { case (branchSchema, index) =>
+    val priority = partialPriority(branchSchema)
+    val err = validate(subInstance, branchSchema).errors.filter(isLeafError)
+    (index, branchSchema, priority, err) // on retourne pour chaque branche sa priorité et les erreurs de validation associées à la sous-instance
+  }
+
+def repairAnyOf(data: Json, schema: Json, error: ValidationError): Json =
+  val path = error.instanceLocation.split("/").toList.tail
+
+  val anyOfNode = navigateSchema(schema, path).downField("anyOf")
+
+  // on extrait les branches de anyOf sous forme de liste indexée
+  val branches: List[(Json, Int)] = anyOfNode.values.toList
+    .flatMap(_.toList)
+    .zipWithIndex
+
+  val sousInstance = navigateData(data.hcursor, path).focus.getOrElse(Json.Null)
+
+  // on calcule la priorite de chaque branche puis on chosit la plus prioritaire
+  val bestBranch = countPriority(sousInstance, branches).sortWith { case ((_, _, c1, e1), (_, _, c2, e2)) =>
+      if e1.size != e2.size then e1.size < e2.size  // on prioritise les branches qui génèrent le moins d'erreurs
+      else c1 < c2  
+    }.headOption
+
+  // on repare la meilleur branche en utilisant la réparation itérative
+  bestBranch match
+    case Some((_, branchSchema, _, errs)) =>
+      val branchResult = ValidationResult(valid = false, errors = errs)
+      val repairedSousInstance = repairAll(sousInstance, branchSchema, branchResult) match 
+        case Right(repaired) => repaired
+        case Left(_)         => generateFromSchema(branchSchema).getOrElse(sousInstance) // si la réparation échoue, on génère une instance à partir du schéma de la branche
+      navigateData(data.hcursor, path).withFocus(_ => repairedSousInstance).top.getOrElse(data)
+    case None => data // si aucune branche n'est valide, on ne peut pas réparer
+  
+    
 
 
 def repairOne(data: Json, schema: Json, error: ValidationError): Json =
@@ -133,13 +202,14 @@ def repairOne(data: Json, schema: Json, error: ValidationError): Json =
     case "type" =>
       val t = errorNode.downField("type").as[String].getOrElse("")
       val currentValue = navigateData(data.hcursor, path).focus
-      val repairedValue = (t, currentValue.flatMap(_.asString)) match
+      val simpleRepair = (t, currentValue.flatMap(_.asString)) match
         case ("boolean", Some(s)) => stringToBool(s)
         case ("integer", Some(s)) => stringToInt(s, errorNode)
         case ("number",  Some(s)) => stringToDouble(s, errorNode)
         case ("array", Some(s)) => stringToArray(s, errorNode)
-        case _  => defaultValue(t)
-      navigateData(data.hcursor, path).withFocus(_ => repairedValue).top.getOrElse(data)
+        case _  => Json.Null
+      val finalRepair = if simpleRepair != Json.Null then simpleRepair else generateType(errorNode)
+      navigateData(data.hcursor, path).withFocus(_ => finalRepair).top.getOrElse(data)
 
     case "minimum" =>
       val min: Json = errorNode.downField("minimum").as[Int] match
@@ -193,6 +263,10 @@ def repairOne(data: Json, schema: Json, error: ValidationError): Json =
       navigateData(data.hcursor, path)
         .withFocus(_ => current.take(maxLength).asJson).top.getOrElse(data)
 
+
+    case "anyOf" =>
+      repairAnyOf(data, schema, error)
+    
     //besoin de generateur aléatoire
     case "required" =>
       val missingField = error.error.stripPrefix("The object is missing required properties [\'").takeWhile(_ != '\'')
@@ -209,6 +283,7 @@ def repairAll(data: Json, schema: Json, result: ValidationResult, maxIterations:
   var instance = data
   var errors = result.errors.filter(isLeafError)
   var iterations = 0
+
 
   while (errors.nonEmpty && iterations < maxIterations) {
     // on prend la premiere erreur
@@ -239,15 +314,22 @@ def repairAll(data: Json, schema: Json, result: ValidationResult, maxIterations:
   // le schema
   val schemaStr = """
   {
-    "required": ["active"],
     "properties": {
-      "user": {
-        "properties": {
-          "id":     { "type": "integer", "minimum": 7, "multipleOf": 3 },
-          "emails": { "type": "array" ,"items": { "type": "string", "format": "email" }}
-        }
-      },
-      "active": { "type": "boolean" }  
+      "value": {
+        "anyOf": [
+                    {
+                        "type": "object",
+                        "required": ["name", "age"],
+                        "properties": {
+                            "name": { "type": "string" },
+                            "age": { "type": "integer", "minimum": 0 }
+                        }
+                    },
+                    {
+                        "minimum": 2
+                    }
+                ]
+      }
     }
   }
   """
@@ -255,16 +337,13 @@ def repairAll(data: Json, schema: Json, result: ValidationResult, maxIterations:
   // le json cassé
   val dataStr = """
   {
-    "user": {
-      "id": 1,
-      "emails": "alice@example.com"
-    },
-    "active": "yes"  
+    "value" : 1.5
   }
   """
 
   val schema = parse(schemaStr).getOrElse(Json.Null)
   val data   = parse(dataStr).getOrElse(Json.Null)
+
 
 
   println("avant réparation:")
