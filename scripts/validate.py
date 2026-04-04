@@ -2,6 +2,11 @@ import sys
 import json
 from jschon import create_catalog, JSON, JSONSchema, URI
 
+# Valide une instance JSON par rapport à un schéma JSON via jschon (draft 2020-12).
+# Arguments : argv[1] = schéma JSON (chaîne compacte), argv[2] = instance JSON (chaîne compacte).
+# Retourne sur stdout un objet JSON avec "valid" (booléen) et "errors" (liste d'erreurs).
+# Chaque erreur contient : instanceLocation, keywordLocation, error.
+
 create_catalog('2020-12')
 
 # read schema and data from command line arguments
