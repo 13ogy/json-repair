@@ -1,0 +1,62 @@
+[
+  {
+    "description": "Nombre de propriétés",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "type": "object",
+          "minProperties": 2,
+          "properties": {
+            "host": { "type": "string" },
+            "port": { "type": "integer" }
+          }
+        },
+        "meta": {
+          "type": "object",
+          "maxProperties": 2
+        }
+      }
+    },
+    "tests": [
+      {
+        "description": "objet avec trop peu de propriétés",
+        "data": { "config": { "host": "localhost" } },
+        "valid": false
+      },
+      {
+        "description": "objet avec trop de propriétés",
+        "data": { "meta": { "a": 1, "b": 2, "c": 3, "d": 4 } },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "Propriétés additionnelles interdites",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "person": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "age":  { "type": "integer" }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "tests": [
+      {
+        "description": "clé non déclarée dans l'objet",
+        "data": { "person": { "name": "Alice", "age": 30, "city": "Paris" } },
+        "valid": false
+      },
+      {
+        "description": "plusieurs clés non autorisées",
+        "data": { "person": { "name": "Bob", "foo": 1, "bar": 2 } },
+        "valid": false
+      }
+    ]
+  }
+]

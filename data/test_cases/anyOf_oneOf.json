@@ -1,0 +1,89 @@
+[
+  {
+    "description": "anyOf : au moins une branche doit être satisfaite",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "anyOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "integer", "minimum": 0 }
+          ]
+        },
+        "id": {
+          "anyOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "string", "pattern": "^[A-Z]{2}[0-9]{4}$" }
+          ]
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["name", "rank"],
+              "properties": {
+                "name": { "type": "string" },
+                "rank": { "type": "integer", "minimum": 1 }
+              }
+            },
+            { "minimum": 1 }
+          ]
+        }
+      }
+    },
+    "tests": [
+      {
+        "description": "valeur ne satisfaisant ni string≥1 ni integer≥0",
+        "data": { "value": [] },
+        "valid": false
+      },
+      {
+        "description": "entier négatif ne satisfaisant pas integer≥0",
+        "data": { "value": -5 },
+        "valid": false
+      },
+      {
+        "description": "exemple du rapport : nombre < minimum de la branche numérique",
+        "data": { "level": 0 },
+        "valid": false
+      },
+      {
+        "description": "exemple du rapport : 1.5 < minimum:2",
+        "data": { "level": 1.5 },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "oneOf : exactement une branche doit être satisfaite",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "measure": {
+          "oneOf": [
+            { "type": "integer" },
+            { "type": "string", "pattern": "^[0-9]+cm$" }
+          ]
+        },
+        "contact": {
+          "oneOf": [
+            { "type": "string", "format": "email" },
+            { "type": "string", "pattern": "^\\+[0-9]{10,15}$" }
+          ]
+        }
+      }
+    },
+    "tests": [
+      {
+        "description": "valeur ne satisfaisant ni entier ni chaîne mesure",
+        "data": { "measure": 3.5 },
+        "valid": false
+      },
+      {
+        "description": "contact ne correspondant ni à email ni à téléphone",
+        "data": { "contact": "pas-un-contact" },
+        "valid": false
+      }
+    ]
+  }
+]

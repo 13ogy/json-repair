@@ -1,10 +1,3 @@
-//> using scala "3.3.1"
-//> using dep "org.gnieh::diffson-circe:4.1.1"
-//> using dep "io.circe::circe-parser:0.14.6"
-//> using dep "io.circe::circe-core:0.14.6"
-//> using dep "org.typelevel::cats-core:2.10.0"
-//> using dep "io.circe::circe-generic:0.14.6"
-
 import diffson.circe._
 import diffson.jsonpatch._
 import diffson.jsonpatch.lcsdiff._
@@ -146,16 +139,16 @@ def stringToArray(v: String, errorNode: ACursor): Json =
 
 // Détermine si une erreur de validation est une erreur feuille de l'arbre d'erreurs.
 // On filtre les erreurs intermédiaires (nœuds "properties") et les erreurs enfants
-// de anyOf/oneOf/allOf/not/if/then/else, qui sont traitées séparément par leurs fonctions dédiées.
+// de anyOf/oneOf/allOf/not, qui sont traitées séparément par leurs fonctions dédiées.
+// Les erreurs dans les branches then/else sont conservées : elles sont détectées
+// dans repairOne via le keywordLocation et redirigées vers repairIfThenElse.
 def isLeafError(error: ValidationError): Boolean =
   val last = error.keywordLocation.split("/").last
   val combinatorRelated =
     error.keywordLocation.contains("/anyOf/") ||
     error.keywordLocation.contains("/oneOf/") ||
     error.keywordLocation.contains("/allOf/") ||
-    error.keywordLocation.contains("/not/")  ||
-    error.keywordLocation.contains("/then/") ||
-    error.keywordLocation.contains("/else/")
+    error.keywordLocation.contains("/not/")
   last != "properties" && !combinatorRelated
 
 // Navigue dans le schéma JSON en suivant un chemin de clés via les champs "properties".
@@ -569,6 +562,11 @@ def repairOne(data: Json, schema: Json, error: ValidationError): Json =
 
     case "else" =>
       // La branche else a échoué : même traitement que if.
+      repairIfThenElse(data, schema, error)
+
+    case _ if error.keywordLocation.contains("/then/") || error.keywordLocation.contains("/else/") =>
+      // Erreur profonde à l'intérieur d'une branche then/else (ex: /properties/x/then/required).
+      // On remonte au niveau du champ concerné pour appliquer repairIfThenElse.
       repairIfThenElse(data, schema, error)
 
     case "minItems" =>

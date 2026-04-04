@@ -1,0 +1,84 @@
+[
+  {
+    "description": "Contraintes de longueur",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "code":    { "type": "string", "minLength": 3 },
+        "label":   { "type": "string", "maxLength": 5 },
+        "pin":     { "type": "string", "minLength": 4, "maxLength": 4 }
+      }
+    },
+    "tests": [
+      {
+        "description": "chaîne trop courte (minLength)",
+        "data": { "code": "ab" },
+        "valid": false
+      },
+      {
+        "description": "chaîne vide (minLength > 0)",
+        "data": { "code": "" },
+        "valid": false
+      },
+      {
+        "description": "chaîne trop longue (maxLength)",
+        "data": { "label": "toolongvalue" },
+        "valid": false
+      },
+      {
+        "description": "pin trop court",
+        "data": { "pin": "12" },
+        "valid": false
+      },
+      {
+        "description": "pin trop long",
+        "data": { "pin": "123456" },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "Contrainte pattern",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "slug":  { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "hex":   { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+      }
+    },
+    "tests": [
+      {
+        "description": "slug avec espaces (pattern non respecté)",
+        "data": { "slug": "Mon Slug!" },
+        "valid": false
+      },
+      {
+        "description": "code couleur invalide (pattern non respecté)",
+        "data": { "hex": "rouge" },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "Contrainte format",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "date":  { "type": "string", "format": "date" }
+      }
+    },
+    "tests": [
+      {
+        "description": "email invalide",
+        "data": { "email": "pas-un-email" },
+        "valid": false
+      },
+      {
+        "description": "date invalide",
+        "data": { "date": "hier" },
+        "valid": false
+      }
+    ]
+  }
+]
