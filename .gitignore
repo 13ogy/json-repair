@@ -1,0 +1,13 @@
+# scala-cli: cache de compilation
+.scala-build/
+
+# BSP: fichiers de configuration générés par scala-cli (peuvent être régénérés)
+.bsp/
+
+# Hypothesis: base de données de constantes générées lors des tests de génération
+.hypothesis/
+
+# Python: bytecode compilé
+__pycache__/
+*.pyc
+*.pyo
