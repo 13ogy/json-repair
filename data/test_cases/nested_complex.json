@@ -1,0 +1,114 @@
+[
+  {
+    "description": "Schéma réaliste : profil utilisateur",
+    "schema": {
+      "type": "object",
+      "required": ["id", "email", "role"],
+      "properties": {
+        "id":    { "type": "integer", "minimum": 1 },
+        "email": { "type": "string", "format": "email" },
+        "role":  { "enum": ["admin", "user", "guest"] },
+        "age":   { "type": "integer", "minimum": 0, "maximum": 150 },
+        "tags":  { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "tests": [
+      {
+        "description": "id négatif, email invalide, rôle hors enum",
+        "data": { "id": -1, "email": "pas-un-email", "role": "superadmin" },
+        "valid": false
+      },
+      {
+        "description": "champs requis manquants + age hors bornes",
+        "data": { "age": 200 },
+        "valid": false
+      },
+      {
+        "description": "clé additionnelle interdite",
+        "data": { "id": 1, "email": "a@b.com", "role": "user", "password": "secret" },
+        "valid": false
+      },
+      {
+        "description": "doublons dans tags",
+        "data": { "id": 1, "email": "a@b.com", "role": "user", "tags": ["dev", "dev", "ops"] },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "Schéma réaliste : commande produit",
+    "schema": {
+      "type": "object",
+      "required": ["orderId", "items", "status"],
+      "properties": {
+        "orderId": { "type": "string", "pattern": "^ORD-[0-9]{6}$" },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["sku", "qty"],
+            "properties": {
+              "sku": { "type": "string", "minLength": 3 },
+              "qty": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "status": { "enum": ["draft", "confirmed", "shipped", "delivered"] },
+        "discount": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "tests": [
+      {
+        "description": "orderId mal formaté, tableau vide, statut invalide",
+        "data": { "orderId": "12345", "items": [], "status": "unknown" },
+        "valid": false
+      },
+      {
+        "description": "éléments de items avec qty négatif et sku trop court",
+        "data": {
+          "orderId": "ORD-000001",
+          "items": [{ "sku": "ab", "qty": -1 }],
+          "status": "confirmed"
+        },
+        "valid": false
+      },
+      {
+        "description": "discount hors bornes",
+        "data": {
+          "orderId": "ORD-000001",
+          "items": [{ "sku": "ABC", "qty": 2 }],
+          "status": "draft",
+          "discount": 1.5
+        },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "Schéma réaliste : adresse",
+    "schema": {
+      "type": "object",
+      "required": ["street", "city", "country"],
+      "properties": {
+        "street":  { "type": "string", "minLength": 1 },
+        "city":    { "type": "string", "minLength": 1 },
+        "zip":     { "type": "string", "pattern": "^[0-9]{5}$" },
+        "country": { "type": "string", "minLength": 2, "maxLength": 2 }
+      }
+    },
+    "tests": [
+      {
+        "description": "champs requis manquants + zip invalide",
+        "data": { "street": "1 rue de la Paix", "zip": "750" },
+        "valid": false
+      },
+      {
+        "description": "code pays trop long",
+        "data": { "street": "Main St", "city": "Paris", "country": "FRA" },
+        "valid": false
+      }
+    ]
+  }
+]

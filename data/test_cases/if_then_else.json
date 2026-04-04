@@ -1,0 +1,57 @@
+[
+  {
+    "description": "if/then/else : validation conditionnelle",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "type": "object",
+          "properties": {
+            "type":    { "type": "string" },
+            "balance": { "type": "number" },
+            "limit":   { "type": "number" }
+          },
+          "if":   { "properties": { "type": { "const": "premium" } } },
+          "then": { "required": ["balance", "limit"] },
+          "else": { "required": ["balance"] }
+        }
+      }
+    },
+    "tests": [
+      {
+        "description": "compte premium sans les champs requis par then",
+        "data": { "account": { "type": "premium" } },
+        "valid": false
+      },
+      {
+        "description": "compte standard sans le champ requis par else",
+        "data": { "account": { "type": "standard" } },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "if/then sans else",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "object",
+          "properties": {
+            "discounted": { "type": "boolean" },
+            "discount":   { "type": "number", "minimum": 0, "maximum": 1 }
+          },
+          "if":   { "properties": { "discounted": { "const": true } } },
+          "then": { "required": ["discount"] }
+        }
+      }
+    },
+    "tests": [
+      {
+        "description": "article remisé sans le champ discount requis",
+        "data": { "item": { "discounted": true } },
+        "valid": false
+      }
+    ]
+  }
+]

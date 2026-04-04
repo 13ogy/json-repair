@@ -1,0 +1,58 @@
+[
+  {
+    "description": "Contrainte enum",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "status": { "enum": ["active", "inactive", "pending"] },
+        "color":  { "type": "string", "enum": ["red", "green", "blue"] },
+        "code":   { "type": "integer", "enum": [1, 2, 4, 8] }
+      }
+    },
+    "tests": [
+      {
+        "description": "valeur hors de la liste enum (chaîne)",
+        "data": { "status": "deleted" },
+        "valid": false
+      },
+      {
+        "description": "valeur hors de la liste enum (couleur)",
+        "data": { "color": "yellow" },
+        "valid": false
+      },
+      {
+        "description": "valeur hors de la liste enum (entier)",
+        "data": { "code": 3 },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "Contrainte const",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "version": { "const": "1.0" },
+        "type":    { "const": "user" },
+        "flag":    { "const": true }
+      }
+    },
+    "tests": [
+      {
+        "description": "version différente de la valeur const",
+        "data": { "version": "2.0" },
+        "valid": false
+      },
+      {
+        "description": "type différent de la valeur const",
+        "data": { "type": "admin" },
+        "valid": false
+      },
+      {
+        "description": "flag différent de la valeur const",
+        "data": { "flag": false },
+        "valid": false
+      }
+    ]
+  }
+]
