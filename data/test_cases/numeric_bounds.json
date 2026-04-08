@@ -1,0 +1,107 @@
+[
+  {
+    "description": "Bornes numériques inclusives",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "age":   { "type": "integer", "minimum": 0, "maximum": 150 },
+        "score": { "type": "number",  "minimum": 0.0, "maximum": 100.0 },
+        "level": { "type": "integer", "minimum": 1 },
+        "pct":   { "type": "number",  "maximum": 1.0 }
+      }
+    },
+    "tests": [
+      {
+        "description": "entier sous le minimum",
+        "data": { "age": -5 },
+        "valid": false
+      },
+      {
+        "description": "entier au-dessus du maximum",
+        "data": { "age": 200 },
+        "valid": false
+      },
+      {
+        "description": "nombre décimal sous le minimum",
+        "data": { "score": -10.5 },
+        "valid": false
+      },
+      {
+        "description": "nombre décimal au-dessus du maximum",
+        "data": { "score": 110.0 },
+        "valid": false
+      },
+      {
+        "description": "entier sous le minimum sans maximum",
+        "data": { "level": 0 },
+        "valid": false
+      },
+      {
+        "description": "nombre au-dessus du maximum sans minimum",
+        "data": { "pct": 1.5 },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "Bornes numériques exclusives",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "number", "exclusiveMinimum": 0 },
+        "y": { "type": "number", "exclusiveMaximum": 10 },
+        "z": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 }
+      }
+    },
+    "tests": [
+      {
+        "description": "valeur égale à exclusiveMinimum",
+        "data": { "x": 0 },
+        "valid": false
+      },
+      {
+        "description": "valeur sous exclusiveMinimum",
+        "data": { "x": -3 },
+        "valid": false
+      },
+      {
+        "description": "valeur égale à exclusiveMaximum",
+        "data": { "y": 10 },
+        "valid": false
+      },
+      {
+        "description": "valeur au-dessus de exclusiveMaximum",
+        "data": { "y": 15 },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "multipleOf",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "qty":    { "type": "integer", "multipleOf": 5 },
+        "amount": { "type": "number",  "multipleOf": 0.25 },
+        "steps":  { "type": "integer", "multipleOf": 3, "minimum": 0, "maximum": 30 }
+      }
+    },
+    "tests": [
+      {
+        "description": "entier non multiple de 5",
+        "data": { "qty": 7 },
+        "valid": false
+      },
+      {
+        "description": "nombre non multiple de 0.25",
+        "data": { "amount": 1.1 },
+        "valid": false
+      },
+      {
+        "description": "entier non multiple avec bornes",
+        "data": { "steps": 7 },
+        "valid": false
+      }
+    ]
+  }
+]

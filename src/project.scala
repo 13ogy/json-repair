@@ -1,0 +1,6 @@
+//> using scala "3.3.1"
+//> using dep "org.gnieh::diffson-circe:4.1.1"
+//> using dep "io.circe::circe-parser:0.14.6"
+//> using dep "io.circe::circe-core:0.14.6"
+//> using dep "org.typelevel::cats-core:2.10.0"
+//> using dep "io.circe::circe-generic:0.14.6"

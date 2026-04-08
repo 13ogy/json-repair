@@ -1,0 +1,57 @@
+[
+  {
+    "description": "Correction de types simples",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "age":    { "type": "integer" },
+        "score":  { "type": "number" },
+        "active": { "type": "boolean" },
+        "name":   { "type": "string" },
+        "tags":   { "type": "array" }
+      }
+    },
+    "tests": [
+      {
+        "description": "chaîne numérique → entier",
+        "data": { "age": "25" },
+        "valid": false
+      },
+      {
+        "description": "chaîne décimale → nombre",
+        "data": { "score": "9.5" },
+        "valid": false
+      },
+      {
+        "description": "chaîne 'true' → booléen",
+        "data": { "active": "true" },
+        "valid": false
+      },
+      {
+        "description": "chaîne 'oui' → booléen vrai",
+        "data": { "active": "oui" },
+        "valid": false
+      },
+      {
+        "description": "chaîne 'non' → booléen faux",
+        "data": { "active": "non" },
+        "valid": false
+      },
+      {
+        "description": "chaîne → tableau (wrapping)",
+        "data": { "tags": "scala" },
+        "valid": false
+      },
+      {
+        "description": "entier → chaîne (génération)",
+        "data": { "name": 42 },
+        "valid": false
+      },
+      {
+        "description": "booléen → entier (génération)",
+        "data": { "age": true },
+        "valid": false
+      }
+    ]
+  }
+]

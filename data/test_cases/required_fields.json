@@ -1,0 +1,98 @@
+[
+  {
+    "description": "Champs requis de types simples",
+    "schema": {
+      "type": "object",
+      "required": ["name", "active", "score"],
+      "properties": {
+        "name":   { "type": "string" },
+        "active": { "type": "boolean" },
+        "score":  { "type": "number" }
+      }
+    },
+    "tests": [
+      {
+        "description": "champ string manquant",
+        "data": { "active": true, "score": 9.5 },
+        "valid": false
+      },
+      {
+        "description": "champ booléen manquant",
+        "data": { "name": "Alice", "score": 9.5 },
+        "valid": false
+      },
+      {
+        "description": "tous les champs requis manquants",
+        "data": {},
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "Champs requis de types complexes",
+    "schema": {
+      "type": "object",
+      "required": ["user", "tags"],
+      "properties": {
+        "user": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "tests": [
+      {
+        "description": "champ objet requis manquant",
+        "data": { "tags": ["scala"] },
+        "valid": false
+      },
+      {
+        "description": "champ tableau requis manquant",
+        "data": { "user": { "id": 1 } },
+        "valid": false
+      },
+      {
+        "description": "les deux champs complexes requis manquants",
+        "data": {},
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "Champs requis imbriqués",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "type": "object",
+          "required": ["id", "emails"],
+          "properties": {
+            "id":     { "type": "integer", "minimum": 1 },
+            "emails": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          }
+        },
+        "active": { "type": "boolean" }
+      },
+      "required": ["user", "active"]
+    },
+    "tests": [
+      {
+        "description": "exemple du rapport : id=0, emails=chaîne, active manquant",
+        "data": { "user": { "id": 0, "emails": "alice@example.com" } },
+        "valid": false
+      },
+      {
+        "description": "id manquant dans user imbriqué",
+        "data": { "user": { "emails": ["a@b.com"] }, "active": true },
+        "valid": false
+      }
+    ]
+  }
+]
