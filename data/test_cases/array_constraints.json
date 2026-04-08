@@ -1,0 +1,117 @@
+[
+  {
+    "description": "Taille des tableaux",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "tags":   { "type": "array", "minItems": 2 },
+        "top3":   { "type": "array", "maxItems": 3 },
+        "pair":   { "type": "array", "minItems": 2, "maxItems": 2 }
+      }
+    },
+    "tests": [
+      {
+        "description": "tableau trop court (minItems)",
+        "data": { "tags": ["scala"] },
+        "valid": false
+      },
+      {
+        "description": "tableau vide (minItems > 0)",
+        "data": { "tags": [] },
+        "valid": false
+      },
+      {
+        "description": "tableau trop long (maxItems)",
+        "data": { "top3": [1, 2, 3, 4, 5] },
+        "valid": false
+      },
+      {
+        "description": "tableau trop court pour pair",
+        "data": { "pair": [1] },
+        "valid": false
+      },
+      {
+        "description": "tableau trop long pour pair",
+        "data": { "pair": [1, 2, 3] },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "Unicité des éléments",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "ids":    { "type": "array", "uniqueItems": true },
+        "colors": { "type": "array", "uniqueItems": true, "items": { "type": "string" } }
+      }
+    },
+    "tests": [
+      {
+        "description": "tableau avec doublons entiers",
+        "data": { "ids": [1, 2, 2, 3] },
+        "valid": false
+      },
+      {
+        "description": "tableau avec doublons chaînes",
+        "data": { "colors": ["rouge", "bleu", "rouge"] },
+        "valid": false
+      },
+      {
+        "description": "tous les éléments identiques",
+        "data": { "ids": [5, 5, 5] },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "Schéma des éléments (items)",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "scores": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+        "names":  { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "tests": [
+      {
+        "description": "éléments de mauvais type dans tableau",
+        "data": { "scores": [10, "vingt", 30] },
+        "valid": false
+      },
+      {
+        "description": "éléments sous le minimum dans tableau",
+        "data": { "scores": [10, -5, 30] },
+        "valid": false
+      },
+      {
+        "description": "éléments mélangés de mauvais type",
+        "data": { "names": ["Alice", 42, "Bob"] },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "Tuple (prefixItems)",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "point": {
+          "type": "array",
+          "prefixItems": [
+            { "type": "number" },
+            { "type": "number" },
+            { "type": "string" }
+          ]
+        }
+      }
+    },
+    "tests": [
+      {
+        "description": "éléments de tuple de mauvais type",
+        "data": { "point": ["trois", "quatre", 5] },
+        "valid": false
+      }
+    ]
+  }
+]

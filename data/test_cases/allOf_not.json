@@ -1,0 +1,68 @@
+[
+  {
+    "description": "allOf : toutes les branches doivent être satisfaites",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "score": {
+          "allOf": [
+            { "type": "number", "minimum": 0 },
+            { "maximum": 100 },
+            { "multipleOf": 0.5 }
+          ]
+        },
+        "username": {
+          "allOf": [
+            { "type": "string", "minLength": 3 },
+            { "maxLength": 20 },
+            { "pattern": "^[a-zA-Z0-9_]+$" }
+          ]
+        }
+      }
+    },
+    "tests": [
+      {
+        "description": "score négatif (viole minimum:0)",
+        "data": { "score": -5 },
+        "valid": false
+      },
+      {
+        "description": "score > 100 (viole maximum:100)",
+        "data": { "score": 150 },
+        "valid": false
+      },
+      {
+        "description": "username trop court (viole minLength:3)",
+        "data": { "username": "ab" },
+        "valid": false
+      },
+      {
+        "description": "username avec caractères spéciaux (viole pattern)",
+        "data": { "username": "user name!" },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "not : l'instance ne doit PAS satisfaire le schéma interdit",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "value": { "not": { "type": "null" } },
+        "flag":  { "not": { "enum": ["forbidden", "banned"] } }
+      }
+    },
+    "tests": [
+      {
+        "description": "valeur null interdite",
+        "data": { "value": null },
+        "valid": false
+      },
+      {
+        "description": "valeur dans la liste interdite (enum + not)",
+        "data": { "flag": "forbidden" },
+        "valid": false
+      }
+    ]
+  }
+]
