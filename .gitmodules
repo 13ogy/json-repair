@@ -1,0 +1,3 @@
+[submodule "data/jsonschemabench"]
+	path = data/jsonschemabench
+	url = https://github.com/guidance-ai/jsonschemabench.git
