@@ -1,3 +1,6 @@
 [submodule "data/jsonschemabench"]
 	path = data/jsonschemabench
 	url = https://github.com/guidance-ai/jsonschemabench.git
+[submodule "data/json-schema-test-suite"]
+	path = data/json-schema-test-suite
+	url = https://github.com/json-schema-org/JSON-Schema-Test-Suite.git

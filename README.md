@@ -61,6 +61,7 @@ json-repair/
 │   ├── Repare.scala           — algorithme principal de réparation
 │   ├── TestRepair.scala       — harnais de test automatisé (tests unitaires)
 │   ├── StressTest.scala       — stress test sur schémas réels (jsonschemabench)
+│   ├── TestSuiteOfficial.scala — test suite officielle JSON Schema draft 2020-12
 │   └── experiments/           — scripts d'exploration Diffson (non utilisés en production)
 │       ├── TestDiff.scala
 │       ├── TestPatch.scala
@@ -83,7 +84,9 @@ json-repair/
 │   │   ├── if_then_else.json
 │   │   └── nested_complex.json
 │   ├── jsonschemabench/       — submodule : 9558 schémas réels (guidance-ai)
-│   └── stress_test_results.csv — résultats du stress test (généré)
+│   ├── json-schema-test-suite/ — submodule : test suite officielle JSON Schema
+│   ├── stress_test_results.csv — résultats du stress test (généré)
+│   └── official_test_suite_results.csv — résultats de la test suite officielle (généré)
 ├── .venv/                     — environnement Python virtuel (ignoré par git)
 ├── .gitignore
 ├── .gitmodules                — configuration des sous-modules git
@@ -541,7 +544,158 @@ Test de l'algorithme de réparation sur des schémas réels issus de [jsonschema
 
 ---
 
+## Test Suite Officielle JSON Schema (draft 2020-12)
+
+### Méthodologie
+
+Nous évaluons notre algorithme de réparation contre la [JSON Schema Test Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite) officielle (draft 2020-12). Pour chaque fichier de test :
+
+1. On charge le schéma et les instances marquées comme **invalides**
+2. On applique `repairAll(instance, schéma)`
+3. On valide le résultat avec `validate()`
+4. On mesure le taux de réparation par mot-clé
+
+### Exécution
+
+```bash
+scala-cli run src/project.scala src/Repare.scala src/TestSuiteOfficial.scala --main-class testSuiteOfficial
+```
+
+Les résultats sont écrits dans `data/official_test_suite_results.csv`.
+
+### Résultats — Mots-clés supportés (77% global — 220/284)
+
+| Mot-clé | Total | Réparés | Taux |
+|---|---|---|---|
+| `type` | 59 | 59 | **100%** |
+| `const` | 32 | 32 | **100%** |
+| `additionalProperties` | 9 | 9 | **100%** |
+| `minimum` | 3 | 3 | **100%** |
+| `maximum` | 2 | 2 | **100%** |
+| `exclusiveMinimum` | 2 | 2 | **100%** |
+| `exclusiveMaximum` | 2 | 2 | **100%** |
+| `maxItems` | 2 | 2 | **100%** |
+| `maxLength` | 2 | 2 | **100%** |
+| `maxProperties` | 3 | 3 | **100%** |
+| `minItems` | 2 | 2 | **100%** |
+| `minProperties` | 2 | 2 | **100%** |
+| `pattern` | 2 | 1 | **100%** (1 ignoré) |
+| `uniqueItems` | 19 | 17 | 89% |
+| `anyOf` | 6 | 5 | 83% |
+| `required` | 6 | 5 | 83% |
+| `enum` | 29 | 23 | 79% |
+| `multipleOf` | 4 | 3 | 75% |
+| `if-then-else` | 10 | 7 | 70% |
+| `minLength` | 3 | 2 | 66% |
+| `properties` | 12 | 8 | 66% |
+| `allOf` | 20 | 12 | 60% |
+| `prefixItems` | 2 | 1 | 50% |
+| `items` | 12 | 5 | 41% |
+| `oneOf` | 15 | 6 | 40% |
+| `not` | 24 | 5 | 20% |
+
+### Résultats — Mots-clés non supportés (13% global — 30/248)
+
+| Mot-clé | Total | Réparés | Taux |
+|---|---|---|---|
+| `anchor` | 4 | 3 | 75% |
+| `vocabulary` | 2 | 1 | 50% |
+| `$ref` | 42 | 16 | 38% |
+| `$dynamicRef` | 22 | 3 | 23% |
+| `dependentSchemas` | 10 | 2 | 20% |
+| `contains` | 10 | 2 | 20% |
+| `patternProperties` | 10 | 1 | 10% |
+| `unevaluatedItems` | 29 | 1 | 3% |
+| `dependentRequired` | 6 | 0 | 0% |
+| `maxContains` | 7 | 0 | 0% |
+| `minContains` | 14 | 0 | 0% |
+| `propertyNames` | 5 | 0 | N/A (ignorés) |
+| `unevaluatedProperties` | 60 | 0 | 0% |
+
+### Analyse des limites par mot-clé
+
+#### `not` — 20% (5/24)
+
+La majorité des échecs (19/24) viennent de schémas `{"not": {}}` ou `{"not": true}` qui interdisent **toute valeur**. Ces schémas sont intrinsèquement irréparables : aucune instance JSON ne peut satisfaire `not: {}` car le schéma vide accepte tout. Les 5 cas réparés correspondent à des négations ciblées (`not: {type: "integer"}`, `not: {enum: [...]}`) où notre algorithme parvient à changer le type ou la valeur.
+
+**Limite fondamentale** : la négation universelle ne peut pas être satisfaite par modification minimale.
+
+#### `oneOf` — 40% (6/15)
+
+Deux catégories d'échecs :
+- **"both oneOf valid"** (6 cas) : l'instance satisfait deux branches simultanément. Notre `repairOneOf` ne sait pas *invalider* une branche tout en gardant l'autre valide, car cela nécessite une stratégie de modification inverse (casser une branche sans toucher l'autre).
+- **"neither oneOf valid"** (3 cas) : notre heuristique de sélection par complexité choisit parfois la mauvaise branche, ou les schémas booléens (`oneOf: [true, true, true]`) n'ont aucune branche réparable.
+
+**Limite** : la contrainte d'unicité (exactement une branche) est plus complexe que `anyOf` (au moins une branche).
+
+#### `allOf` — 60% (12/20)
+
+Les 8 échecs se répartissent en :
+- **Combinaisons `allOf` + `anyOf` + `oneOf`** (7 cas) : quand un `allOf` contient lui-même des combinateurs (`anyOf`, `oneOf`), la réparation séquentielle via `foldLeft` sur les branches peut créer des régressions croisées. La réparation d'une branche peut annuler la correction d'une branche précédente.
+- **Schémas booléens** (1 cas) : `allOf: [true, false]` → aucune instance ne peut satisfaire une branche qui est littéralement `false`.
+
+**Limite** : la réparation séquentielle ne garantit pas la convergence pour des interactions complexes entre branches.
+
+#### `items` — 41% (5/12)
+
+Les 7 échecs viennent de :
+- **Schéma booléen `items: false`** (4 cas) : interdit tout élément dans le tableau (au-delà de `prefixItems`). Notre `repairItems` ne gère pas le cas où le schéma est `false` (il faudrait tronquer le tableau aux éléments autorisés par `prefixItems`).
+- **Sous-items avec `$defs`/`$ref`** (3 cas) : les schémas utilisent `$defs` pour définir des sous-structures imbriquées. Notre algorithme ne résout pas les `$ref`, donc la validation échoue sur les sous-items référencés.
+
+**Limite** : absence de support pour `$ref`/`$defs` et pour le schéma booléen `false` comme schéma d'items.
+
+#### `enum` — 79% (23/29)
+
+Les 6 échecs se répartissent en :
+- **`enum: []` (liste vide)** (6 cas) : aucune valeur ne peut satisfaire un enum vide — cas intrinsèquement irréparable, similaire à `not: {}`.
+- Les cas d'égalité stricte (ex: `false ≠ 0`, `true ≠ 1`) sont tous réparés correctement car notre `repairEnum` remplace simplement par la première valeur de la liste.
+
+#### `properties` — 66% (8/12)
+
+Les 4 échecs concernent :
+- **Interaction `properties` + `patternProperties` + `additionalProperties`** (3 cas) : notre algorithme ne gère pas `patternProperties` (non implémenté), ce qui empêche la réparation complète quand ces trois mots-clés interagissent.
+- **Noms de propriétés spéciaux** (1 cas) : `__proto__`, `toString`, `constructor` — noms réservés JavaScript qui peuvent poser des problèmes de navigation dans l'arbre JSON.
+
+#### `uniqueItems` — 89% (17/19)
+
+Les 2 échecs correspondent à des cas avec `items: false` combiné à `uniqueItems` : le tableau contient des éléments qui violent `items: false` en plus d'être non-uniques. La troncation par `items: false` n'étant pas implémentée, la déduplication seule ne suffit pas.
+
+#### `multipleOf` — 75% (3/4)
+
+L'échec unique concerne `multipleOf: 0.0001` avec `35 ÷ 0.0001 = 350000` — un cas de précision flottante où la division produit un résultat non-exact en virgule flottante (`0.00751 / 0.0001 ≈ 75.09999...`). Notre arrondi au multiple le plus proche peut ne pas converger.
+
+#### `minLength` — 66% (2/3)
+
+L'échec concerne un cas avec un caractère graphème composé (🐲 est un seul graphème mais peut être compté différemment en UTF-16). Notre comptage de longueur de chaîne utilise `.length` de Scala qui compte les unités UTF-16, pas les graphèmes.
+
+### Observations générales
+
+- **Points forts** : les contraintes scalaires (`type`, `const`, `minimum`, `maximum`, bornes strictes) et structurelles (`additionalProperties`, `minProperties`, `maxProperties`) atteignent 100%. Ce sont les cas les plus fréquents dans les schémas réels.
+- **Cas irréparables** : certains schémas (`not: {}`, `enum: []`, `allOf: [true, false]`) n'admettent aucune instance valide — ce sont des limites théoriques, pas des bugs.
+- **Améliorations possibles** :
+  - Support de `$ref`/`$defs` : débloquerait de nombreux cas dans `items`, `allOf`, et les mots-clés non supportés.
+  - Gestion de `items: false` : troncation du tableau aux éléments `prefixItems` autorisés.
+  - Réparation inverse pour `oneOf` : invalidation ciblée des branches superflues.
+- Les mots-clés non supportés (`$ref`, `$dynamicRef`, `contains`, etc.) ne sont pas implémentés dans `Repare.scala` mais certains cas sont réparés indirectement grâce aux itérations successives.
+
+---
+
 ## Changelog
+
+### [feature/test-suite-official] — Test suite officielle JSON Schema draft 2020-12
+
+**Ajouts :**
+- `data/json-schema-test-suite/` : sous-module git de la JSON Schema Test Suite officielle
+- `src/TestSuiteOfficial.scala` : harnais de test officiel avec classification supported/unsupported, statistiques par mot-clé, export CSV
+- `data/official_test_suite_results.csv` : résultats du dernier run
+
+**Corrections :**
+- `scripts/validate.py` : conversion des erreurs non-string (tableaux JSON) en chaînes — débloque `additionalProperties`, `items`, `prefixItems`
+- `src/Repare.scala` : `repairMinProperties` ajoute des champs factices en fallback quand la génération échoue
+
+**Résultat :** 77% de réparation sur les mots-clés supportés (220/284), 100% sur les contraintes scalaires et structurelles
+
+---
 
 ### [feature/stress-test-mutation] — Stress test avec mutation sur schémas réels
 

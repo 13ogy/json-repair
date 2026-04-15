@@ -381,6 +381,7 @@ def repairAdditionalProperties(data: Json, schema: Json, path: List[String]): Js
 
 // Répare une erreur minProperties : ajoute des champs générés jusqu'à atteindre
 // le nombre minimal de propriétés requis.
+// Si la génération échoue, on ajoute des champs factices ("_prop0", "_prop1", …).
 def repairMinProperties(data: Json, schema: Json, path: List[String]): Json =
   val minProps   = navigateSchema(schema, path).downField("minProperties").as[Int].getOrElse(0)
   val fieldSchema = navigateSchema(schema, path).as[Json].getOrElse(Json.obj())
@@ -388,9 +389,9 @@ def repairMinProperties(data: Json, schema: Json, path: List[String]): Json =
   val current = navigateData(data.hcursor, path).focus.flatMap(_.asObject).getOrElse(JsonObject.empty)
   var obj = current
 
-  // On génère des champs supplémentaires jusqu'à atteindre minProperties
+  // On essaie de générer via hypothesis
   var attempts = 0
-  while (obj.size < minProps && attempts < 10) {
+  while (obj.size < minProps && attempts < 3) {
     generateFromSchema(fieldSchema) match
       case Some(generated) =>
         generated.asObject.foreach { genObj =>
@@ -400,6 +401,14 @@ def repairMinProperties(data: Json, schema: Json, path: List[String]): Json =
         }
       case None => ()
     attempts += 1
+  }
+
+  // Fallback : ajout de champs factices si la génération n'a pas suffi
+  var counter = 0
+  while (obj.size < minProps) {
+    val key = s"_prop$counter"
+    if !obj.contains(key) then obj = obj.add(key, Json.Null)
+    counter += 1
   }
 
   navigateData(data.hcursor, path).withFocus(_ => obj.asJson).top.getOrElse(data)

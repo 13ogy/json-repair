@@ -25,7 +25,7 @@ errors = [
     {
         "instanceLocation": e.get("instanceLocation", ""),
         "keywordLocation":  e.get("keywordLocation", ""),
-        "error":            e.get("error", "")
+        "error":            e.get("error", "") if isinstance(e.get("error", ""), str) else json.dumps(e.get("error", ""))
     }
     for e in output.get("errors", [])
 ]
