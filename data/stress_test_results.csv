@@ -1,0 +1,12 @@
+collection,total,generated,mutated,repaired,rate_percent
+Github_easy,10,10,6,6,100
+Github_hard,10,5,2,2,100
+Github_medium,10,10,10,10,100
+Github_trivial,10,10,7,7,100
+Github_ultra,10,3,2,2,100
+Glaiveai2K,10,10,10,10,100
+JsonSchemaStore,10,6,3,3,100
+Kubernetes,10,10,1,1,100
+Snowplow,10,10,10,10,100
+WashingtonPost,10,9,5,5,100
+TOTAL,100,83,56,56,100

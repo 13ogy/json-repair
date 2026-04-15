@@ -59,29 +59,34 @@ json-repair/
 ├── src/
 │   ├── project.scala          — directives scala-cli (dépendances, version Scala)
 │   ├── Repare.scala           — algorithme principal de réparation
-│   ├── TestRepair.scala       — harnais de test automatisé
+│   ├── TestRepair.scala       — harnais de test automatisé (tests unitaires)
+│   ├── StressTest.scala       — stress test sur schémas réels (jsonschemabench)
 │   └── experiments/           — scripts d'exploration Diffson (non utilisés en production)
 │       ├── TestDiff.scala
 │       ├── TestPatch.scala
 │       └── Test_suite_patch.scala
 ├── scripts/
 │   ├── validate.py            — pont Scala → jschon (validation)
-│   └── generate.py            — pont Scala → hypothesis-jsonschema (génération)
+│   ├── generate.py            — pont Scala → hypothesis-jsonschema (génération)
+│   └── mutate.py              — mutateur d'instances valides → invalides
 ├── data/
-│   └── test_cases/            — jeu de tests JSON par catégorie de mots-clés
-│       ├── type_errors.json
-│       ├── numeric_bounds.json
-│       ├── string_constraints.json
-│       ├── required_fields.json
-│       ├── array_constraints.json
-│       ├── object_constraints.json
-│       ├── enum_const.json
-│       ├── anyOf_oneOf.json
-│       ├── allOf_not.json
-│       ├── if_then_else.json
-│       └── nested_complex.json
+│   ├── test_cases/            — jeu de tests JSON par catégorie de mots-clés
+│   │   ├── type_errors.json
+│   │   ├── numeric_bounds.json
+│   │   ├── string_constraints.json
+│   │   ├── required_fields.json
+│   │   ├── array_constraints.json
+│   │   ├── object_constraints.json
+│   │   ├── enum_const.json
+│   │   ├── anyOf_oneOf.json
+│   │   ├── allOf_not.json
+│   │   ├── if_then_else.json
+│   │   └── nested_complex.json
+│   ├── jsonschemabench/       — submodule : 9558 schémas réels (guidance-ai)
+│   └── stress_test_results.csv — résultats du stress test (généré)
 ├── .venv/                     — environnement Python virtuel (ignoré par git)
 ├── .gitignore
+├── .gitmodules                — configuration des sous-modules git
 └── requirements.txt           — dépendances Python
 ```
 
@@ -112,6 +117,18 @@ scala-cli run src/project.scala src/Repare.scala --main-class test
 ```bash
 scala-cli run src/project.scala src/Repare.scala src/TestRepair.scala --main-class testRepair
 ```
+
+### Exécuter le stress test sur schémas réels
+
+```bash
+# Initialiser le sous-module jsonschemabench (première fois uniquement)
+git submodule update --init --recursive
+
+# Lancer le stress test (N = nombre de schémas par collection, défaut : 20)
+scala-cli run src/project.scala src/Repare.scala src/StressTest.scala --main-class stressTest -- 10
+```
+
+Les résultats sont écrits dans `data/stress_test_results.csv`.
 
 ---
 
@@ -391,6 +408,22 @@ Les instances marquées `"valid": false` sont les cas de test. Les instances `"v
 
 Scripts d'exploration des approches Diffson (distance d'édition entre instances JSON). Non utilisés dans le pipeline de réparation. Conservés pour référence historique. Ne pas compiler avec les fichiers principaux (conflits de nom `@main def run`).
 
+### `src/StressTest.scala`
+
+Stress test sur des schémas réels issus de [jsonschemabench](https://github.com/guidance-ai/jsonschemabench) (9558 schémas, 10 collections).
+
+Pour chaque schéma de l'échantillon :
+1. Générer une instance valide via `hypothesis-jsonschema` (timeout 15s)
+2. Muter l'instance via `scripts/mutate.py` pour la rendre invalide (3 tentatives)
+3. Réparer l'instance mutée avec `repairAll`
+4. Valider le résultat
+
+Résultats écrits en CSV dans `data/stress_test_results.csv`. Timeout global de 60s par schéma.
+
+### `scripts/mutate.py`
+
+Mutateur d'instances JSON valides. Applique 1 à 3 mutations ciblées (changement de type, violation de bornes, suppression de champs requis, etc.) avec un fallback agressif si les mutations ciblées ne suffisent pas.
+
 ---
 
 ## Mots-clés supportés
@@ -478,7 +511,49 @@ La distance Diffson est le nombre d'opérations (ajouts, suppressions, remplacem
 
 ---
 
+## Stress test — Schémas réels
+
+Test de l'algorithme de réparation sur des schémas réels issus de [jsonschemabench](https://github.com/guidance-ai/jsonschemabench) (guidance-ai). Protocole : pour chaque schéma, on génère une instance valide via `hypothesis-jsonschema`, on la mute pour introduire des erreurs, puis on lance la réparation.
+
+**Approche : mutation** — les instances valides sont corrompues par `scripts/mutate.py` qui applique des changements de type, violations de bornes, suppressions de champs requis, etc.
+
+| Collection | Total | Générés | Mutés | Réparés | Taux |
+|---|---|---|---|---|---|
+| Github_easy | 10 | 10 | 6 | 6 | 100% |
+| Github_hard | 10 | 5 | 2 | 2 | 100% |
+| Github_medium | 10 | 10 | 10 | 10 | 100% |
+| Github_trivial | 10 | 10 | 7 | 7 | 100% |
+| Github_ultra | 10 | 3 | 2 | 2 | 100% |
+| Glaiveai2K | 10 | 10 | 10 | 10 | 100% |
+| JsonSchemaStore | 10 | 6 | 3 | 3 | 100% |
+| Kubernetes | 10 | 10 | 1 | 1 | 100% |
+| Snowplow | 10 | 10 | 10 | 10 | 100% |
+| WashingtonPost | 10 | 9 | 5 | 5 | 100% |
+| **TOTAL** | **100** | **83** | **56** | **56** | **100%** |
+
+**Observations :**
+
+- **Taux de réparation : 100%** — toutes les instances invalides ont été réparées avec succès.
+- **Goulots d'étranglement de la génération** (17% d'échecs) : `hypothesis-jsonschema` ne parvient pas à générer d'instances valides pour certains schémas complexes (notamment `Github_ultra`, `Github_hard`), souvent à cause de combinateurs imbriqués (`$ref` récursifs, `patternProperties`, schémas très volumineux).
+- **Goulots d'étranglement de la mutation** (33% d'échecs sur les instances générées) : certains schémas très permissifs (ex: Kubernetes avec des `x-kubernetes-*` extensions) n'imposent pas assez de contraintes pour que les mutations ciblées rendent l'instance invalide.
+- **Collections les mieux couvertes** : `Glaiveai2K` (function call schemas, 100% de couverture), `Snowplow` (API schemas, 100%), `Github_medium` (100%).
+- **Collections les plus difficiles** : `Github_ultra` (schémas très complexes, 70% d'échec en génération), `Kubernetes` (90% d'échec en mutation — schémas très permissifs).
+
+---
+
 ## Changelog
+
+### [feature/stress-test-mutation] — Stress test avec mutation sur schémas réels
+
+**Ajouts :**
+- `data/jsonschemabench/` : sous-module git contenant 9558 schémas JSON réels (10 collections)
+- `scripts/mutate.py` : mutateur d'instances valides → invalides (mutations ciblées + fallback agressif)
+- `src/StressTest.scala` : harnais de stress test avec timeouts (15s génération, 60s global), CSV output, statistiques par collection
+- `data/stress_test_results.csv` : résultats du dernier run
+
+**Résultat :** 100% de réparation sur 56 instances mutées (échantillon de 10 par collection)
+
+---
 
 ### [feature/test-suite] — Jeu de tests riche et harnais
 
