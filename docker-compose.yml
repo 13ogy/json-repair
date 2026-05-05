@@ -1,0 +1,26 @@
+# Compose pour développement et reproduction des expérimentations.
+# Le service `repair` monte les répertoires source en volumes pour que les
+# modifications faites depuis l'hôte soient immédiatement visibles dans
+# le conteneur (utile lors du développement).
+#
+# Usage typique :
+#   docker compose build
+#   docker compose run --rm repair scala-cli run \
+#       src/project.scala src/Repare.scala src/TestRepair.scala \
+#       --main-class testRepair
+
+services:
+  repair:
+    build: .
+    image: json-repair:latest
+    container_name: json-repair
+    working_dir: /workspace
+    volumes:
+      - ./src:/workspace/src
+      - ./scripts:/workspace/scripts
+      - ./data:/workspace/data
+      - ./report:/workspace/report
+      - ./requirements.txt:/workspace/requirements.txt
+    command: bash
+    stdin_open: true
+    tty: true

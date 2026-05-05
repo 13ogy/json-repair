@@ -17,9 +17,18 @@ case class CategoryResult(
   distances:  List[Int] // distances Diffson entre instance originale et instance réparée
 )
 
-// Exécute tous les cas de test d'un fichier et retourne les résultats agrégés.
-// Chaque fichier contient un tableau de groupes, chaque groupe ayant un schéma et des tests.
-def runFile(file: File): CategoryResult =
+// Résultat fin pour un cas de test individuel (utilisé pour l'export CSV des distances).
+case class TestCaseResult(
+  category:   String,
+  groupDesc:  String,
+  testDesc:   String,
+  status:     String,  // "repaired" ou "failed"
+  distance:   Int      // -1 si non réparé
+)
+
+// Exécute tous les cas de test d'un fichier et retourne les résultats agrégés
+// ainsi que la liste détaillée des résultats par cas de test (pour export CSV).
+def runFile(file: File): (CategoryResult, List[TestCaseResult]) =
   val name    = file.getName.stripSuffix(".json")
   val content = Source.fromFile(file).mkString
   val groups  = parse(content).flatMap(_.as[Vector[Json]]).getOrElse(Vector.empty)
@@ -27,6 +36,7 @@ def runFile(file: File): CategoryResult =
   var total    = 0
   var repaired = 0
   var distances: List[Int] = Nil
+  var caseResults: List[TestCaseResult] = Nil
 
   given lcs: Lcs[Json] = new Patience[Json]
 
@@ -57,13 +67,16 @@ def runFile(file: File): CategoryResult =
               val patch    = diff(data, fixed)
               val distance = patch.ops.size
               distances = distance :: distances
+              caseResults = TestCaseResult(name, groupDesc, desc, "repaired", distance) :: caseResults
               println(s"  ✓ [$name] $groupDesc > $desc (distance=$distance)")
             else
+              caseResults = TestCaseResult(name, groupDesc, desc, "failed", -1) :: caseResults
               println(s"  ✗ [$name] $groupDesc > $desc (réparation invalide, erreurs restantes: ${checkResult.errors.map(_.error).mkString("; ")})")
           case Left(err) =>
+            caseResults = TestCaseResult(name, groupDesc, desc, "failed", -1) :: caseResults
             println(s"  ✗ [$name] $groupDesc > $desc (échec: $err)")
 
-  CategoryResult(name, total, repaired, distances.reverse)
+  (CategoryResult(name, total, repaired, distances.reverse), caseResults.reverse)
 
 @main def testRepair(): Unit =
 
@@ -78,7 +91,9 @@ def runFile(file: File): CategoryResult =
   println("Harnais de test — réparation JSON")
   println("=" * 60)
 
-  val results = files.map(runFile)
+  val pairs = files.map(runFile)
+  val results = pairs.map(_._1)
+  val allCaseResults = pairs.flatMap(_._2)
 
   // Résumé par catégorie
   println()
@@ -90,22 +105,40 @@ def runFile(file: File): CategoryResult =
   var repairedAll = 0
   var allDistances: List[Int] = Nil
 
+  // Écriture CSV des résultats agrégés par catégorie
+  val summaryCsv = new java.io.PrintWriter("data/manual_tests_summary.csv")
+  summaryCsv.println("category,total,repaired,rate_percent,dist_avg,dist_max")
+
   for r <- results do
     val rate = if r.total > 0 then (r.repaired * 100.0 / r.total).toInt else 0
     val avgDist = if r.distances.nonEmpty then
-      f"${r.distances.sum.toDouble / r.distances.size}%.1f"
-    else "N/A"
-    val maxDist = if r.distances.nonEmpty then r.distances.max.toString else "N/A"
+      f"${r.distances.sum.toDouble / r.distances.size}%.2f"
+    else "0"
+    val maxDist = if r.distances.nonEmpty then r.distances.max.toString else "0"
     println(f"  ${r.name}%-30s  ${r.repaired}%3d/${r.total}%3d  ($rate%3d%%)  dist moy=$avgDist  dist max=$maxDist")
+    summaryCsv.println(s"${r.name},${r.total},${r.repaired},$rate,$avgDist,$maxDist")
     totalAll    += r.total
     repairedAll += r.repaired
     allDistances = allDistances ++ r.distances
+
+  summaryCsv.close()
+
+  // Écriture CSV des distances par instance (pour histogramme)
+  val distCsv = new java.io.PrintWriter("data/manual_tests_distances.csv")
+  distCsv.println("category,group_desc,test_desc,status,distance")
+  for c <- allCaseResults do
+    // Échapper les virgules dans les descriptions
+    val gd = c.groupDesc.replace(",", ";").replace("\"", "'")
+    val td = c.testDesc.replace(",", ";").replace("\"", "'")
+    distCsv.println(s"${c.category},${gd},${td},${c.status},${c.distance}")
+  distCsv.close()
 
   // Résumé global
   println()
   println("=" * 60)
   val globalRate = if totalAll > 0 then (repairedAll * 100.0 / totalAll).toInt else 0
-  val globalAvg  = if allDistances.nonEmpty then f"${allDistances.sum.toDouble / allDistances.size}%.1f" else "N/A"
+  val globalAvg  = if allDistances.nonEmpty then f"${allDistances.sum.toDouble / allDistances.size}%.2f" else "N/A"
   val globalMax  = if allDistances.nonEmpty then allDistances.max.toString else "N/A"
   println(f"  TOTAL                           $repairedAll%3d/$totalAll%3d  ($globalRate%3d%%)  dist moy=$globalAvg  dist max=$globalMax")
   println("=" * 60)
+  println(s"\n  Résultats CSV écrits dans data/manual_tests_summary.csv et data/manual_tests_distances.csv")

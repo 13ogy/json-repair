@@ -1,0 +1,12 @@
+.venv
+.scala-build
+.bsp
+.idea
+.metals
+.bloop
+.hypothesis
+__pycache__
+*.pyc
+.git
+.gitmodules
+report/img

@@ -1,0 +1,12 @@
+category,total,repaired,rate_percent,dist_avg,dist_max
+allOf_not,6,6,100,1.00,1
+anyOf_oneOf,6,6,100,0.67,1
+array_constraints,12,12,100,1.42,3
+enum_const,6,6,100,1.00,1
+if_then_else,3,3,100,1.33,2
+nested_complex,9,9,100,2.00,4
+numeric_bounds,13,13,100,1.00,1
+object_constraints,4,4,100,1.50,2
+required_fields,8,8,100,1.63,3
+string_constraints,9,9,100,0.78,1
+type_errors,8,8,100,1.00,1

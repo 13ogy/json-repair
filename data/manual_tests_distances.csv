@@ -1,0 +1,85 @@
+category,group_desc,test_desc,status,distance
+allOf_not,allOf : toutes les branches doivent être satisfaites,score négatif (viole minimum:0),repaired,1
+allOf_not,allOf : toutes les branches doivent être satisfaites,score > 100 (viole maximum:100),repaired,1
+allOf_not,allOf : toutes les branches doivent être satisfaites,username trop court (viole minLength:3),repaired,1
+allOf_not,allOf : toutes les branches doivent être satisfaites,username avec caractères spéciaux (viole pattern),repaired,1
+allOf_not,not : l'instance ne doit PAS satisfaire le schéma interdit,valeur null interdite,repaired,1
+allOf_not,not : l'instance ne doit PAS satisfaire le schéma interdit,valeur dans la liste interdite (enum + not),repaired,1
+anyOf_oneOf,anyOf : au moins une branche doit être satisfaite,valeur ne satisfaisant ni string≥1 ni integer≥0,repaired,1
+anyOf_oneOf,anyOf : au moins une branche doit être satisfaite,entier négatif ne satisfaisant pas integer≥0,repaired,1
+anyOf_oneOf,anyOf : au moins une branche doit être satisfaite,exemple du rapport : nombre < minimum de la branche numérique,repaired,1
+anyOf_oneOf,anyOf : au moins une branche doit être satisfaite,exemple du rapport : 1.5 < minimum:2,repaired,0
+anyOf_oneOf,oneOf : exactement une branche doit être satisfaite,valeur ne satisfaisant ni entier ni chaîne mesure,repaired,1
+anyOf_oneOf,oneOf : exactement une branche doit être satisfaite,contact ne correspondant ni à email ni à téléphone,repaired,0
+array_constraints,Taille des tableaux,tableau trop court (minItems),repaired,1
+array_constraints,Taille des tableaux,tableau vide (minItems > 0),repaired,2
+array_constraints,Taille des tableaux,tableau trop long (maxItems),repaired,2
+array_constraints,Taille des tableaux,tableau trop court pour pair,repaired,1
+array_constraints,Taille des tableaux,tableau trop long pour pair,repaired,1
+array_constraints,Unicité des éléments,tableau avec doublons entiers,repaired,1
+array_constraints,Unicité des éléments,tableau avec doublons chaînes,repaired,1
+array_constraints,Unicité des éléments,tous les éléments identiques,repaired,2
+array_constraints,Schéma des éléments (items),éléments de mauvais type dans tableau,repaired,1
+array_constraints,Schéma des éléments (items),éléments sous le minimum dans tableau,repaired,1
+array_constraints,Schéma des éléments (items),éléments mélangés de mauvais type,repaired,1
+array_constraints,Tuple (prefixItems),éléments de tuple de mauvais type,repaired,3
+enum_const,Contrainte enum,valeur hors de la liste enum (chaîne),repaired,1
+enum_const,Contrainte enum,valeur hors de la liste enum (couleur),repaired,1
+enum_const,Contrainte enum,valeur hors de la liste enum (entier),repaired,1
+enum_const,Contrainte const,version différente de la valeur const,repaired,1
+enum_const,Contrainte const,type différent de la valeur const,repaired,1
+enum_const,Contrainte const,flag différent de la valeur const,repaired,1
+if_then_else,if/then/else : validation conditionnelle,compte premium sans les champs requis par then,repaired,2
+if_then_else,if/then/else : validation conditionnelle,compte standard sans le champ requis par else,repaired,1
+if_then_else,if/then sans else,article remisé sans le champ discount requis,repaired,1
+nested_complex,Schéma réaliste : profil utilisateur,id négatif; email invalide; rôle hors enum,repaired,2
+nested_complex,Schéma réaliste : profil utilisateur,champs requis manquants + age hors bornes,repaired,4
+nested_complex,Schéma réaliste : profil utilisateur,clé additionnelle interdite,repaired,1
+nested_complex,Schéma réaliste : profil utilisateur,doublons dans tags,repaired,1
+nested_complex,Schéma réaliste : commande produit,orderId mal formaté; tableau vide; statut invalide,repaired,3
+nested_complex,Schéma réaliste : commande produit,éléments de items avec qty négatif et sku trop court,repaired,2
+nested_complex,Schéma réaliste : commande produit,discount hors bornes,repaired,1
+nested_complex,Schéma réaliste : adresse,champs requis manquants + zip invalide,repaired,3
+nested_complex,Schéma réaliste : adresse,code pays trop long,repaired,1
+numeric_bounds,Bornes numériques inclusives,entier sous le minimum,repaired,1
+numeric_bounds,Bornes numériques inclusives,entier au-dessus du maximum,repaired,1
+numeric_bounds,Bornes numériques inclusives,nombre décimal sous le minimum,repaired,1
+numeric_bounds,Bornes numériques inclusives,nombre décimal au-dessus du maximum,repaired,1
+numeric_bounds,Bornes numériques inclusives,entier sous le minimum sans maximum,repaired,1
+numeric_bounds,Bornes numériques inclusives,nombre au-dessus du maximum sans minimum,repaired,1
+numeric_bounds,Bornes numériques exclusives,valeur égale à exclusiveMinimum,repaired,1
+numeric_bounds,Bornes numériques exclusives,valeur sous exclusiveMinimum,repaired,1
+numeric_bounds,Bornes numériques exclusives,valeur égale à exclusiveMaximum,repaired,1
+numeric_bounds,Bornes numériques exclusives,valeur au-dessus de exclusiveMaximum,repaired,1
+numeric_bounds,multipleOf,entier non multiple de 5,repaired,1
+numeric_bounds,multipleOf,nombre non multiple de 0.25,repaired,1
+numeric_bounds,multipleOf,entier non multiple avec bornes,repaired,1
+object_constraints,Nombre de propriétés,objet avec trop peu de propriétés,repaired,1
+object_constraints,Nombre de propriétés,objet avec trop de propriétés,repaired,2
+object_constraints,Propriétés additionnelles interdites,clé non déclarée dans l'objet,repaired,1
+object_constraints,Propriétés additionnelles interdites,plusieurs clés non autorisées,repaired,2
+required_fields,Champs requis de types simples,champ string manquant,repaired,1
+required_fields,Champs requis de types simples,champ booléen manquant,repaired,1
+required_fields,Champs requis de types simples,tous les champs requis manquants,repaired,3
+required_fields,Champs requis de types complexes,champ objet requis manquant,repaired,1
+required_fields,Champs requis de types complexes,champ tableau requis manquant,repaired,1
+required_fields,Champs requis de types complexes,les deux champs complexes requis manquants,repaired,2
+required_fields,Champs requis imbriqués,exemple du rapport : id=0; emails=chaîne; active manquant,repaired,3
+required_fields,Champs requis imbriqués,id manquant dans user imbriqué,repaired,1
+string_constraints,Contraintes de longueur,chaîne trop courte (minLength),repaired,1
+string_constraints,Contraintes de longueur,chaîne vide (minLength > 0),repaired,1
+string_constraints,Contraintes de longueur,chaîne trop longue (maxLength),repaired,1
+string_constraints,Contraintes de longueur,pin trop court,repaired,1
+string_constraints,Contraintes de longueur,pin trop long,repaired,1
+string_constraints,Contrainte pattern,slug avec espaces (pattern non respecté),repaired,1
+string_constraints,Contrainte pattern,code couleur invalide (pattern non respecté),repaired,1
+string_constraints,Contrainte format,email invalide,repaired,0
+string_constraints,Contrainte format,date invalide,repaired,0
+type_errors,Correction de types simples,chaîne numérique → entier,repaired,1
+type_errors,Correction de types simples,chaîne décimale → nombre,repaired,1
+type_errors,Correction de types simples,chaîne 'true' → booléen,repaired,1
+type_errors,Correction de types simples,chaîne 'oui' → booléen vrai,repaired,1
+type_errors,Correction de types simples,chaîne 'non' → booléen faux,repaired,1
+type_errors,Correction de types simples,chaîne → tableau (wrapping),repaired,1
+type_errors,Correction de types simples,entier → chaîne (génération),repaired,1
+type_errors,Correction de types simples,booléen → entier (génération),repaired,1

@@ -20,7 +20,6 @@ Algorithme de réparation automatique d'instances JSON invalides par rapport à 
 6. [Mots-clés supportés](#mots-clés-supportés)
 7. [Analyse de complexité](#analyse-de-complexité)
 8. [Jeu de tests](#jeu-de-tests)
-9. [Changelog](#changelog)
 
 ---
 
@@ -69,7 +68,8 @@ json-repair/
 ├── scripts/
 │   ├── validate.py            — pont Scala → jschon (validation)
 │   ├── generate.py            — pont Scala → hypothesis-jsonschema (génération)
-│   └── mutate.py              — mutateur d'instances valides → invalides
+│   ├── mutate.py              — mutateur d'instances valides → invalides
+│   └── plots.py               — génère les figures du rapport (matplotlib)
 ├── data/
 │   ├── test_cases/            — jeu de tests JSON par catégorie de mots-clés
 │   │   ├── type_errors.json
@@ -86,10 +86,17 @@ json-repair/
 │   ├── jsonschemabench/       — submodule : 9558 schémas réels (guidance-ai)
 │   ├── json-schema-test-suite/ — submodule : test suite officielle JSON Schema
 │   ├── stress_test_results.csv — résultats du stress test (généré)
-│   └── official_test_suite_results.csv — résultats de la test suite officielle (généré)
+│   ├── official_test_suite_results.csv — résultats de la test suite officielle (généré)
+│   ├── manual_tests_summary.csv — résumé du jeu de tests manuel (généré)
+│   └── manual_tests_distances.csv — distances Diffson par instance (généré)
+├── report/
+│   ├── main.tex               — rapport LaTeX
+│   └── img/                   — figures PNG du rapport
 ├── .venv/                     — environnement Python virtuel (ignoré par git)
 ├── .gitignore
 ├── .gitmodules                — configuration des sous-modules git
+├── Dockerfile                 — image Docker reproductible
+├── docker-compose.yml         — service `repair` pour lancer les harnais
 └── requirements.txt           — dépendances Python
 ```
 
@@ -97,31 +104,66 @@ json-repair/
 
 ## Installation et lancement
 
-### Prérequis
+### Option A — Reproduction avec Docker (recommandée)
+
+Aucune installation locale de Python ou scala-cli n'est nécessaire.
+
+```bash
+# Initialiser les sous-modules de test (test suite + jsonschemabench)
+git submodule update --init --recursive
+
+# Construction de l'image (première fois uniquement)
+docker compose build
+
+# Jeu de tests manuel (84 instances)
+docker compose run --rm repair scala-cli run \
+    src/project.scala src/Repare.scala src/TestRepair.scala \
+    --main-class testRepair
+
+# Stress test sur jsonschemabench (N = nombre de schémas par collection)
+docker compose run --rm repair scala-cli run \
+    src/project.scala src/Repare.scala src/StressTest.scala \
+    --main-class stressTest -- 10
+
+# Test suite officielle JSON Schema (draft 2020-12)
+docker compose run --rm repair scala-cli run \
+    src/project.scala src/Repare.scala src/TestSuiteOfficial.scala \
+    --main-class testSuiteOfficial
+
+# Génération des graphes du rapport (optionnel — nécessite matplotlib)
+docker compose run --rm repair .venv/bin/pip install matplotlib
+docker compose run --rm repair .venv/bin/python3 scripts/plots.py
+```
+
+Les CSV de résultats sont écrits dans `data/` (monté en volume → accessibles depuis l'hôte). Les graphes PNG sont écrits dans `report/img/`.
+
+### Option B — Installation locale
+
+#### Prérequis
 
 - [scala-cli](https://scala-cli.virtuslab.org/) ≥ 1.0
 - Python 3.11+
 
-### Mise en place de l'environnement Python
+#### Mise en place de l'environnement Python
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
-### Exécuter l'algorithme de réparation (exemple de test)
+#### Exécuter l'algorithme de réparation (exemple de test)
 
 ```bash
 scala-cli run src/project.scala src/Repare.scala --main-class test
 ```
 
-### Exécuter le harnais de tests complet
+#### Exécuter le harnais de tests complet
 
 ```bash
 scala-cli run src/project.scala src/Repare.scala src/TestRepair.scala --main-class testRepair
 ```
 
-### Exécuter le stress test sur schémas réels
+#### Exécuter le stress test sur schémas réels
 
 ```bash
 # Initialiser le sous-module jsonschemabench (première fois uniquement)
@@ -132,6 +174,15 @@ scala-cli run src/project.scala src/Repare.scala src/StressTest.scala --main-cla
 ```
 
 Les résultats sont écrits dans `data/stress_test_results.csv`.
+
+#### Régénérer les figures du rapport
+
+```bash
+.venv/bin/pip install matplotlib
+.venv/bin/python3 scripts/plots.py
+```
+
+Les figures PNG sont produites dans `report/img/`.
 
 ---
 
@@ -536,11 +587,9 @@ Test de l'algorithme de réparation sur des schémas réels issus de [jsonschema
 
 **Observations :**
 
-- **Taux de réparation : 100%** — toutes les instances invalides ont été réparées avec succès.
-- **Goulots d'étranglement de la génération** (17% d'échecs) : `hypothesis-jsonschema` ne parvient pas à générer d'instances valides pour certains schémas complexes (notamment `Github_ultra`, `Github_hard`), souvent à cause de combinateurs imbriqués (`$ref` récursifs, `patternProperties`, schémas très volumineux).
-- **Goulots d'étranglement de la mutation** (33% d'échecs sur les instances générées) : certains schémas très permissifs (ex: Kubernetes avec des `x-kubernetes-*` extensions) n'imposent pas assez de contraintes pour que les mutations ciblées rendent l'instance invalide.
-- **Collections les mieux couvertes** : `Glaiveai2K` (function call schemas, 100% de couverture), `Snowplow` (API schemas, 100%), `Github_medium` (100%).
-- **Collections les plus difficiles** : `Github_ultra` (schémas très complexes, 70% d'échec en génération), `Kubernetes` (90% d'échec en mutation — schémas très permissifs).
+Toutes les instances invalides obtenues après mutation sont réparées (56/56). En revanche, le pipeline laisse échapper la majorité des schémas en amont. Sur les 100 schémas tirés au sort, 17 ne donnent lieu à aucune génération — `hypothesis-jsonschema` n'arrive pas à produire une instance valide, le plus souvent à cause de `$ref` récursifs, de `patternProperties`, ou de schémas très volumineux (collections `Github_ultra` et `Github_hard`). Sur les 83 instances effectivement générées, 27 résistent à la mutation : certains schémas comme ceux de Kubernetes sont si permissifs (extensions `x-kubernetes-*`) que les mutations ciblées ne produisent pas d'instance invalide.
+
+Au final, les collections `Glaiveai2K`, `Snowplow` et `Github_medium` traversent l'ensemble du pipeline, tandis que `Github_ultra` (70% d'échec en génération) et `Kubernetes` (90% d'échec en mutation) sont les plus difficiles.
 
 ---
 
@@ -616,160 +665,42 @@ Les résultats sont écrits dans `data/official_test_suite_results.csv`.
 
 #### `not` — 20% (5/24)
 
-La majorité des échecs (19/24) viennent de schémas `{"not": {}}` ou `{"not": true}` qui interdisent **toute valeur**. Ces schémas sont intrinsèquement irréparables : aucune instance JSON ne peut satisfaire `not: {}` car le schéma vide accepte tout. Les 5 cas réparés correspondent à des négations ciblées (`not: {type: "integer"}`, `not: {enum: [...]}`) où notre algorithme parvient à changer le type ou la valeur.
-
-**Limite fondamentale** : la négation universelle ne peut pas être satisfaite par modification minimale.
+19 cas sur 24 sont des schémas de la forme `{"not": {}}` ou `{"not": true}` qui interdisent toute valeur : aucune instance JSON ne peut les satisfaire, c'est une impossibilité théorique. Les 5 cas réparés correspondent à des négations ciblées (`not: {type: "integer"}`, `not: {enum: [...]}`) où l'algorithme parvient à changer le type ou la valeur incriminée.
 
 #### `oneOf` — 40% (6/15)
 
-Deux catégories d'échecs :
-- **"both oneOf valid"** (6 cas) : l'instance satisfait deux branches simultanément. Notre `repairOneOf` ne sait pas *invalider* une branche tout en gardant l'autre valide, car cela nécessite une stratégie de modification inverse (casser une branche sans toucher l'autre).
-- **"neither oneOf valid"** (3 cas) : notre heuristique de sélection par complexité choisit parfois la mauvaise branche, ou les schémas booléens (`oneOf: [true, true, true]`) n'ont aucune branche réparable.
-
-**Limite** : la contrainte d'unicité (exactement une branche) est plus complexe que `anyOf` (au moins une branche).
+Deux familles d'échecs distinctes. Six instances satisfont simultanément deux branches du `oneOf` : `repairOneOf` ne sait pas invalider une branche tout en gardant l'autre valide, ce qui demanderait une stratégie de modification inverse. Trois autres correspondent à des schémas où aucune branche n'est satisfaite — soit notre heuristique de sélection par complexité choisit une mauvaise branche, soit toutes les branches sont des schémas booléens (`oneOf: [true, true, true]`) sans aucun mot-clé sur lequel agir.
 
 #### `allOf` — 60% (12/20)
 
-Les 8 échecs se répartissent en :
-- **Combinaisons `allOf` + `anyOf` + `oneOf`** (7 cas) : quand un `allOf` contient lui-même des combinateurs (`anyOf`, `oneOf`), la réparation séquentielle via `foldLeft` sur les branches peut créer des régressions croisées. La réparation d'une branche peut annuler la correction d'une branche précédente.
-- **Schémas booléens** (1 cas) : `allOf: [true, false]` → aucune instance ne peut satisfaire une branche qui est littéralement `false`.
-
-**Limite** : la réparation séquentielle ne garantit pas la convergence pour des interactions complexes entre branches.
+Sept des huit échecs combinent `allOf` avec d'autres combinateurs (`anyOf`, `oneOf`) : la réparation séquentielle via `foldLeft` peut créer des régressions croisées, où la correction d'une branche annule celle d'une branche traitée précédemment. Le huitième cas est `allOf: [true, false]`, théoriquement insatisfiable.
 
 #### `items` — 41% (5/12)
 
-Les 7 échecs viennent de :
-- **Schéma booléen `items: false`** (4 cas) : interdit tout élément dans le tableau (au-delà de `prefixItems`). Notre `repairItems` ne gère pas le cas où le schéma est `false` (il faudrait tronquer le tableau aux éléments autorisés par `prefixItems`).
-- **Sous-items avec `$defs`/`$ref`** (3 cas) : les schémas utilisent `$defs` pour définir des sous-structures imbriquées. Notre algorithme ne résout pas les `$ref`, donc la validation échoue sur les sous-items référencés.
-
-**Limite** : absence de support pour `$ref`/`$defs` et pour le schéma booléen `false` comme schéma d'items.
+Quatre cas reposent sur `items: false`, qui interdit tout élément au-delà des `prefixItems` : nous ne tronquons pas les tableaux, ce qui empêche la réparation. Les trois autres utilisent `$defs`/`$ref` pour référencer le schéma des items, et notre algorithme ne résout pas les références.
 
 #### `enum` — 79% (23/29)
 
-Les 6 échecs se répartissent en :
-- **`enum: []` (liste vide)** (6 cas) : aucune valeur ne peut satisfaire un enum vide — cas intrinsèquement irréparable, similaire à `not: {}`.
-- Les cas d'égalité stricte (ex: `false ≠ 0`, `true ≠ 1`) sont tous réparés correctement car notre `repairEnum` remplace simplement par la première valeur de la liste.
+Les six échecs sont tous des `enum: []` (liste vide), qui n'admettent aucune valeur : irréparables au même titre que `not: {}`. Tous les cas avec `enum` non vide sont réparés correctement, y compris ceux d'égalité stricte du type `false ≠ 0` ou `true ≠ 1`.
 
 #### `properties` — 66% (8/12)
 
-Les 4 échecs concernent :
-- **Interaction `properties` + `patternProperties` + `additionalProperties`** (3 cas) : notre algorithme ne gère pas `patternProperties` (non implémenté), ce qui empêche la réparation complète quand ces trois mots-clés interagissent.
-- **Noms de propriétés spéciaux** (1 cas) : `__proto__`, `toString`, `constructor` — noms réservés JavaScript qui peuvent poser des problèmes de navigation dans l'arbre JSON.
+Trois échecs concernent une interaction entre `properties`, `patternProperties` (non implémenté) et `additionalProperties`. Le quatrième porte sur des noms de propriétés réservés (`__proto__`, `toString`, `constructor`) qui posent des problèmes de navigation.
 
 #### `uniqueItems` — 89% (17/19)
 
-Les 2 échecs correspondent à des cas avec `items: false` combiné à `uniqueItems` : le tableau contient des éléments qui violent `items: false` en plus d'être non-uniques. La troncation par `items: false` n'étant pas implémentée, la déduplication seule ne suffit pas.
+Les deux échecs combinent `uniqueItems` avec `items: false` : la déduplication seule ne suffit pas, il faudrait aussi tronquer les éléments interdits par `items: false`.
 
 #### `multipleOf` — 75% (3/4)
 
-L'échec unique concerne `multipleOf: 0.0001` avec `35 ÷ 0.0001 = 350000` — un cas de précision flottante où la division produit un résultat non-exact en virgule flottante (`0.00751 / 0.0001 ≈ 75.09999...`). Notre arrondi au multiple le plus proche peut ne pas converger.
+L'échec porte sur `multipleOf: 0.0001` : la division en virgule flottante (`0.00751 / 0.0001 ≈ 75.0999...`) empêche notre arrondi au multiple le plus proche de converger.
 
 #### `minLength` — 66% (2/3)
 
-L'échec concerne un cas avec un caractère graphème composé (🐲 est un seul graphème mais peut être compté différemment en UTF-16). Notre comptage de longueur de chaîne utilise `.length` de Scala qui compte les unités UTF-16, pas les graphèmes.
+L'échec concerne un caractère graphème composé (🐲) : notre comptage utilise `.length` de Scala (unités UTF-16), pas le nombre de graphèmes.
 
 ### Observations générales
 
-- **Points forts** : les contraintes scalaires (`type`, `const`, `minimum`, `maximum`, bornes strictes) et structurelles (`additionalProperties`, `minProperties`, `maxProperties`) atteignent 100%. Ce sont les cas les plus fréquents dans les schémas réels.
-- **Cas irréparables** : certains schémas (`not: {}`, `enum: []`, `allOf: [true, false]`) n'admettent aucune instance valide — ce sont des limites théoriques, pas des bugs.
-- **Améliorations possibles** :
-  - Support de `$ref`/`$defs` : débloquerait de nombreux cas dans `items`, `allOf`, et les mots-clés non supportés.
-  - Gestion de `items: false` : troncation du tableau aux éléments `prefixItems` autorisés.
-  - Réparation inverse pour `oneOf` : invalidation ciblée des branches superflues.
-- Les mots-clés non supportés (`$ref`, `$dynamicRef`, `contains`, etc.) ne sont pas implémentés dans `Repare.scala` mais certains cas sont réparés indirectement grâce aux itérations successives.
+Les contraintes scalaires (`type`, `const`, `minimum`, `maximum`, bornes strictes) et les contraintes structurelles simples (`additionalProperties`, `minProperties`, `maxProperties`) atteignent 100%. Ce sont aussi les cas les plus fréquents dans les schémas réels. À l'inverse, les combinateurs imbriqués (`oneOf`, `not`, `allOf` avec `anyOf` à l'intérieur) et les mots-clés non implémentés constituent l'essentiel des échecs.
 
----
-
-## Changelog
-
-### [feature/test-suite-official] — Test suite officielle JSON Schema draft 2020-12
-
-**Ajouts :**
-- `data/json-schema-test-suite/` : sous-module git de la JSON Schema Test Suite officielle
-- `src/TestSuiteOfficial.scala` : harnais de test officiel avec classification supported/unsupported, statistiques par mot-clé, export CSV
-- `data/official_test_suite_results.csv` : résultats du dernier run
-
-**Corrections :**
-- `scripts/validate.py` : conversion des erreurs non-string (tableaux JSON) en chaînes — débloque `additionalProperties`, `items`, `prefixItems`
-- `src/Repare.scala` : `repairMinProperties` ajoute des champs factices en fallback quand la génération échoue
-
-**Résultat :** 77% de réparation sur les mots-clés supportés (220/284), 100% sur les contraintes scalaires et structurelles
-
----
-
-### [feature/stress-test-mutation] — Stress test avec mutation sur schémas réels
-
-**Ajouts :**
-- `data/jsonschemabench/` : sous-module git contenant 9558 schémas JSON réels (10 collections)
-- `scripts/mutate.py` : mutateur d'instances valides → invalides (mutations ciblées + fallback agressif)
-- `src/StressTest.scala` : harnais de stress test avec timeouts (15s génération, 60s global), CSV output, statistiques par collection
-- `data/stress_test_results.csv` : résultats du dernier run
-
-**Résultat :** 100% de réparation sur 56 instances mutées (échantillon de 10 par collection)
-
----
-
-### [feature/test-suite] — Jeu de tests riche et harnais
-
-**Ajouts :**
-- `data/test_cases/` : 11 fichiers JSON couvrant tous les mots-clés supportés
-  - `type_errors.json`, `numeric_bounds.json`, `string_constraints.json`, `required_fields.json`
-  - `array_constraints.json`, `object_constraints.json`, `enum_const.json`
-  - `anyOf_oneOf.json`, `allOf_not.json`, `if_then_else.json`, `nested_complex.json`
-- `src/TestRepair.scala` : harnais de test automatisé avec calcul de la distance Diffson
-- `src/project.scala` : centralisation des directives scala-cli
-
-**Corrections :**
-- `isLeafError` : suppression des filtres `/then/` et `/else/` (trop larges — bloquaient la détection des erreurs `required` dans les branches conditionnelles)
-- `repairOne` : ajout d'un cas `_ if error.keywordLocation.contains("/then/") || ...` pour capturer les erreurs profondes dans les branches `then`/`else`
-
----
-
-### [feature/repair-completeness] — Implémentation complète des mots-clés
-
-**Ajouts dans `src/Repare.scala` :**
-
-Nouveaux cas dans `repairOne()` :
-
-- **Combinateurs** : `oneOf` → `repairOneOf`, `allOf` → `repairAllOf`, `not` → `repairNot`, `if`/`then`/`else` → `repairIfThenElse`
-- **Tableaux** : `minItems` (padding null), `maxItems` (troncature), `uniqueItems` → `repairUniqueItems`, `items` → `repairItems`, `prefixItems` → `repairPrefixItems`
-- **Objets** : `minProperties` → `repairMinProperties`, `maxProperties` → `repairMaxProperties`, `additionalProperties` → `repairAdditionalProperties`
-- **Bornes strictes** : `exclusiveMinimum` → `repairExclusiveMin`, `exclusiveMaximum` → `repairExclusiveMax`
-- **Format/regex** : `pattern` → `repairPatternOrFormat`, `format` → `repairPatternOrFormat`
-- **Valeurs imposées** : `enum` → `repairEnum`, `const` → `repairConst`
-- **`required` amélioré** : utilise `generateFromSchema` pour les types `object` et `array`
-
-Nouvelles fonctions auxiliaires : `repairOneOf`, `repairAllOf`, `repairNot`, `repairIfThenElse`, `repairUniqueItems`, `repairItems`, `repairPrefixItems`, `repairAdditionalProperties`, `repairMinProperties`, `repairMaxProperties`, `repairExclusiveMin`, `repairExclusiveMax`, `repairPatternOrFormat`, `repairEnum`, `repairConst`
-
-**Ajouts :**
-- `.venv/` : environnement Python virtuel avec `jschon` + `hypothesis-jsonschema`
-- `requirements.txt` : dépendances Python
-- Scripts appelés via `.venv/bin/python3`
-- `.gitignore` : `.venv/` ajouté
-
----
-
-### [main] — Restructuration, corrections de bugs, commentaires en français
-
-**Restructuration du projet :**
-- `Repare.scala` → `src/Repare.scala`
-- `validate.py` → `scripts/validate.py`
-- `generate.py` → `scripts/generate.py`
-- `TestDiff.scala`, `TestPatch.scala`, `Test_suite_patch.scala` → `src/experiments/`
-- Création de `data/test_cases/`
-- Mise à jour des chemins des scripts dans `Repare.scala`
-
-**Corrections de bugs :**
-- `generate.py` : `sys.stdin.read()` → `json.loads(sys.argv[1])` (le schéma était passé en argv, pas en stdin)
-- `partialPriority` dans `Repare.scala` : `cursor.downField("Required")` → `cursor.downField("required")` (majuscule → minuscule, la branche de priorité pour les objets avec `required` ne se déclenchait jamais)
-
-**Documentation :**
-- Réécriture de tous les commentaires en français
-- Commentaires détaillés sur la logique de chaque fonction
-
----
-
-### [main] — Nettoyage git initial
-
-- Création de `.gitignore` : exclusion de `.scala-build/`, `.bsp/`, `.hypothesis/`, `__pycache__/`, `*.pyc`
-- Suppression du suivi de 195 fichiers de cache générés automatiquement (`.bsp/`, `.hypothesis/`, `.scala-build/`)
+Une partie de ces échecs sont théoriques : `not: {}`, `enum: []`, `allOf: [true, false]` n'admettent aucune instance valide et ne sont donc pas un défaut de l'algorithme. Pour le reste, trois améliorations auraient un impact direct : la résolution de `$ref`/`$defs` débloquerait de nombreux cas dans `items` et `allOf`, la prise en charge de `items: false` traiterait la troncation des tableaux, et une stratégie d'invalidation ciblée permettrait de gérer les cas où une instance satisfait plusieurs branches d'un `oneOf`. Enfin, certains mots-clés non implémentés (`$ref`, `$dynamicRef`, `contains`, etc.) sont parfois réparés indirectement, par effet de bord des itérations successives.
